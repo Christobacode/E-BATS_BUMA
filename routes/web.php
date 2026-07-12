@@ -1,20 +1,14 @@
 <?php
-
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PeminjamanController;
-//Buat bikin langsung ke halaman peminjaman
-Route::redirect('/', '/peminjaman');
-// ROUTE PUBLIK: Pastikan kodenya utuh dari Route::get sampai ->name()
-Route::get('/verifikasi-bast/{uuid}', [PeminjamanController::class, 'verifikasi'])->name('peminjaman.verifikasi');
 
+Route::get('/', [PeminjamanController::class, 'index'])->name('peminjaman.index');
+Route::get('/peminjaman/create', [PeminjamanController::class, 'create'])->name('peminjaman.create');
+Route::post('/peminjaman', [PeminjamanController::class, 'store'])->name('peminjaman.store');
 
-// ROUTE ADMIN
-Route::prefix('peminjaman')->name('peminjaman.')->group(function () {
-    
-    Route::get('/create', [PeminjamanController::class, 'create'])->name('create');
-    Route::post('/store', [PeminjamanController::class, 'store'])->name('store');
-    Route::patch('/{id}/kembalikan', [PeminjamanController::class, 'kembalikan'])->name('kembalikan');
-    Route::get('/{id}/cetak', [PeminjamanController::class, 'cetakPdf'])->name('cetak');
-    Route::get('/', [PeminjamanController::class, 'index'])->name('index');
-    
-});
+// Rute untuk Form Pengembalian
+Route::get('/peminjaman/{id}/kembali', [PeminjamanController::class, 'formPengembalian'])->name('peminjaman.form_pengembalian');
+Route::post('/peminjaman/{id}/kembali', [PeminjamanController::class, 'prosesPengembalian'])->name('peminjaman.proses_pengembalian');
+
+// Rute untuk Export Excel
+Route::get('/peminjaman/export/excel', [PeminjamanController::class, 'exportExcel'])->name('peminjaman.export');

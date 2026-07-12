@@ -3,148 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard E-BAST IT - BUMA</title>
-    <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            /* Menambahkan Background Image dari folder public/img */
-            background-image: url("{{ asset('img/bg-buma.jpg') }}");
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
-            padding: 20px; 
-            margin: 0;
-        }
-
-        /* Overlay hitam transparan agar tabel tetap terbaca jelas */
-        .overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(0, 0, 0, 0.4);
-            z-index: -1;
-        }
-
-        .container { 
-            max-width: 1000px; 
-            margin: 0 auto; 
-            /* Background putih dengan sedikit transparansi (0.95) */
-            background: rgba(255, 255, 255, 0.95); 
-            padding: 30px; 
-            border-radius: 12px; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3); 
-        }
-
-        /* Styling Header Dashboard */
-        .dashboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-        }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .logo-buma {
-            height: 45px; /* Ukuran proporsional untuk header */
-        }
-
-        h2 { color: #1f2937; margin: 0; font-size: 22px; }
-
-        .btn { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; text-decoration: none; display: inline-block; font-size: 13px; transition: opacity 0.2s; }
-        .btn-primary { background-color: #00994d; color: white; } /* Hijau BUMA */
-        .btn-success { background-color: #10b981; color: white; }
-        .btn-secondary { background-color: #6b7280; color: white; }
-        .btn:hover { opacity: 0.9; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; background-color: #fff; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        th { background-color: #f9fafb; font-weight: 600; color: #374151; }
-        .badge { padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-        .badge-warning { background-color: #fef3c7; color: #d97706; }
-        .badge-success { background-color: #d1fae5; color: #065f46; }
-        .alert { padding: 15px; background-color: #d1fae5; color: #065f46; border-radius: 6px; margin-bottom: 20px; }
-    </style>
+    <title>E-BAST - IT Support BUMA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-
-<!-- Lapisan transparan di atas background asli -->
-<div class="overlay"></div>
-
-<div class="container">
+<body class="bg-gray-50 text-gray-800 font-sans">
     
-    <div class="dashboard-header">
-        <div class="header-title">
-            <img src="{{ asset('img/logo-buma.png') }}" alt="Logo BUMA" class="logo-buma">
-            <h2>Dashboard Peminjaman Aset IT</h2>
+    <!-- Navbar Korporat -->
+    <nav class="bg-[#003366] text-white px-6 py-3 flex justify-between items-center">
+        <div class="font-bold text-lg tracking-wide">IT SUPPORT SYSTEM | PT BUMA Site IPR</div>
+        <div class="text-sm">Login sebagai: Admin IT</div>
+    </nav>
+
+    <div class="p-6 max-w-7xl mx-auto">
+        <!-- Header Section -->
+        <div class="flex justify-between items-end mb-4">
+            <div>
+                <h1 class="text-2xl font-bold border-b-2 border-gray-300 pb-1 inline-block">Data Berita Acara Serah Terima (BAST)</h1>
+            </div>
+            <div class="space-x-2">
+                <a href="{{ route('peminjaman.export') }}" class="bg-green-600 text-white px-4 py-2 rounded-sm text-sm hover:bg-green-700 font-semibold border border-green-700">⬇ Export CSV</a>
+                <a href="{{ route('peminjaman.create') }}" class="bg-[#003366] text-white px-4 py-2 rounded-sm text-sm hover:bg-blue-800 font-semibold border border-[#002244]">➕ Buat BAST Baru</a>
+            </div>
         </div>
-        <a href="{{ route('peminjaman.create') }}" class="btn btn-primary">+ Buat BAST Baru</a>
+
+        @if(session('success'))
+            <div class="bg-green-50 border-l-4 border-green-600 text-green-700 p-3 mb-4 text-sm font-medium">
+                ✓ {{ session('success') }}
+            </div>
+        @endif
+
+        <!-- Panel Tabel -->
+        <div class="bg-white border border-gray-300 rounded-sm">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="bg-gray-100 border-b border-gray-300 text-gray-700">
+                        <th class="p-3 border-r border-gray-300 font-semibold w-1/4">Nama Aset</th>
+                        <th class="p-3 border-r border-gray-300 font-semibold">Peminjam & Dept</th>
+                        <th class="p-3 border-r border-gray-300 font-semibold w-1/6">Tgl Pinjam</th>
+                        <th class="p-3 border-r border-gray-300 font-semibold w-1/6">Status</th>
+                        <th class="p-3 font-semibold text-center w-1/5">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($peminjamans as $row)
+                        <tr class="border-b border-gray-200 hover:bg-yellow-50">
+                            <td class="p-3 border-r border-gray-200">{{ $row->barang->nama_barang ?? '[Aset Terhapus]' }}</td>
+                            <td class="p-3 border-r border-gray-200">
+                                <strong>{{ $row->nama_peminjam }}</strong><br>
+                                <span class="text-gray-500 text-xs">{{ $row->departemen_peminjam }}</span>
+                            </td>
+                            <td class="p-3 border-r border-gray-200">{{ \Carbon\Carbon::parse($row->tanggal_peminjaman)->format('d-m-Y') }}</td>
+                            <td class="p-3 border-r border-gray-200">
+                                @if($row->status == 'Dipinjam')
+                                    <span class="text-orange-600 font-bold">Dipinjam</span>
+                                @else
+                                    <span class="text-green-600 font-bold">Dikembalikan</span>
+                                @endif
+                            </td>
+                            <td class="p-3 text-center">
+                                @if($row->status == 'Dipinjam')
+                                    <a href="{{ route('peminjaman.form_pengembalian', $row->id) }}" class="bg-orange-500 text-white px-2 py-1 rounded-sm text-xs hover:bg-orange-600 border border-orange-600">Proses Kembali</a>
+                                @endif
+                                <button class="bg-gray-200 text-gray-700 px-2 py-1 rounded-sm text-xs border border-gray-400 hover:bg-gray-300 cursor-not-allowed">Cetak PDF</button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="p-6 text-center text-gray-500">Data peminjaman belum tersedia.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
     </div>
-
-    @if(session('success'))
-        <div class="alert">✅ {{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="alert" style="background-color: #fee2e2; color: #b91c1c;">⚠️ {{ session('error') }}</div>
-    @endif
-
-    <table>
-        <thead>
-            <tr>
-                <th>Tanggal</th>
-                <th>Penerima</th>
-                <th>Aset IT</th>
-                <th>Status</th>
-                <th>Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($peminjamans as $row)
-            <tr>
-                <td>{{ \Carbon\Carbon::parse($row->tanggal_penyerahan)->format('d M Y') }}</td>
-                <td>
-                    <strong>{{ $row->karyawan->nama }}</strong><br>
-                    <span style="font-size: 12px; color: #6b7280;">{{ $row->karyawan->departemen }}</span>
-                </td>
-                <td>
-                    {{ $row->barang->nama_barang }}<br>
-                    <span style="font-size: 12px; color: #6b7280;">{{ $row->barang->kode_aset }}</span>
-                </td>
-                <td>
-                    @if($row->status == 'Dipinjam')
-                        <span class="badge badge-warning">Dipinjam</span>
-                    @else
-                        <span class="badge badge-success">Dikembalikan</span>
-                    @endif
-                </td>
-                <td>
-                    <!-- Tombol Cetak PDF -->
-                    <a href="{{ route('peminjaman.cetak', $row->id) }}" target="_blank" class="btn btn-secondary">🖨️ Cetak PDF</a>
-                    
-                    <!-- Logika Keamanan: Tombol Terima hanya muncul jika barang masih dipinjam -->
-                    @if($row->status == 'Dipinjam')
-                        <form action="{{ route('peminjaman.kembalikan', $row->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Yakin aset fisik sudah dicek dan diterima kembali?');">
-                            @csrf
-                            @method('PATCH')
-                            <button type="submit" class="btn btn-success">📦 Terima Barang</button>
-                        </form>
-                    @endif
-                </td>
-            </tr>
-            @empty
-            <tr>
-                <td colspan="5" style="text-align: center; color: #6b7280;">Belum ada riwayat transaksi BAST.</td>
-            </tr>
-            @endforelse
-        </tbody>
-    </table>
-</div>
-
 </body>
 </html>

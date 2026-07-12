@@ -2,106 +2,153 @@
 
 namespace App\Http\Controllers;
 
-// --- BAGIAN INI YANG SEPERTINYA HILANG DI KODEMU ---
-use Illuminate\Http\Request;
 use App\Models\Peminjaman;
-use App\Models\Karyawan;
 use App\Models\Barang;
-use Barryvdh\DomPDF\Facade\Pdf;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
-// --------------------------------------------------
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class PeminjamanController extends Controller
 {
     public function index()
     {
-        // Mengambil semua data transaksi, diurutkan dari yang terbaru
-        $peminjamans = Peminjaman::with(['karyawan', 'barang'])->latest()->get();
+        $peminjamans = Peminjaman::with('barang')->latest()->get();
         return view('peminjaman.index', compact('peminjamans'));
     }
-    // 1. Menampilkan form serah terima
+
     public function create()
     {
-        $karyawans = Karyawan::all();
-        // Hanya ambil barang yang statusnya tersedia
-        $barangs = Barang::where('status_ketersediaan', 'Tersedia')->get(); 
-        
-        return view('peminjaman.create', compact('karyawans', 'barangs'));
+        // Hanya tampilkan barang yang stoknya masih ada
+        $barangs = Barang::where('stok', '>', 0)->get();
+        return view('peminjaman.create', compact('barangs'));
     }
 
-    // 2. Menyimpan data dan tanda tangan
     public function store(Request $request)
     {
-        $request->validate([
-            'karyawan_id' => 'required',
-            'barang_id' => 'required',
-            'tanggal_penyerahan' => 'required|date',
-            // SECURITY: Regex memastikan input adalah murni base64 gambar PNG dari Canvas
-            'signature' => ['required', 'regex:/^data:image\/png;base64,/']
-        ]);
+        $barang = Barang::findOrFail($request->barang_id);
 
-        // Simpan transaksi
+        // Ubah coretan jadi gambar, lalu simpan nama filenya ke variabel $pathTtd
+        $pathTtd = $this->simpanTandaTangan($request->tanda_tangan_peminjam, 'ambil');
+
+        $barang->stok -= 1;
+        $barang->save();
+
         Peminjaman::create([
-            'karyawan_id' => $request->karyawan_id,
             'barang_id' => $request->barang_id,
-            'tanggal_penyerahan' => $request->tanggal_penyerahan,
-            'tanda_tangan' => $request->signature,
+            'nama_peminjam' => $request->nama_peminjam,
+            'departemen_peminjam' => $request->departemen_peminjam,
+            'nama_admin_penyerah' => $request->nama_admin_penyerah,
+            'tanggal_peminjaman' => now()->toDateString(),
+
+            // 👇 INI KUNCINYA: Pastikan diisi $pathTtd, BUKAN $request->tanda_tangan_peminjam
+            'tanda_tangan_peminjam' => $pathTtd,
+
             'status' => 'Dipinjam'
         ]);
 
-        // Update status ketersediaan barang di master data
-        $barang = Barang::find($request->barang_id);
-        $barang->update(['status_ketersediaan' => 'Dipinjam']);
-
-        return redirect()->back()->with('success', 'BAST Digital Berhasil Disimpan!');
+        return redirect()->route('peminjaman.index')->with('success', 'BAST Pengambilan berhasil dibuat!');
     }
 
-    // 3. Memproses pengembalian barang (Mencegah CSRF & Idempotensi)
-    public function kembalikan($id)
+    public function formPengembalian($id)
+    {
+        // 1. Ambil data transaksi berdasarkan ID beserta data barangnya
+        $peminjaman = Peminjaman::with('barang')->findOrFail($id);
+
+        // 2. Buka halaman return, dan JANGAN LUPA bawa datanya (compact)
+        return view('peminjaman.return', compact('peminjaman'));
+    }
+
+    public function prosesPengembalian(Request $request, $id)
     {
         $peminjaman = Peminjaman::findOrFail($id);
+        $barang = Barang::findOrFail($peminjaman->barang_id);
 
-        // Cek jika barang memang sudah dikembalikan sebelumnya
-        if ($peminjaman->status === 'Dikembalikan') {
-            return back()->with('error', 'Aset ini sudah tercatat dikembalikan sebelumnya.');
+        $pathTtd = $this->simpanTandaTangan($request->tanda_tangan_pengembali, 'kembali');
+
+        $barang->stok += 1;
+        $barang->save();
+
+        $peminjaman->update([
+            'nama_pengembali' => $request->nama_pengembali,
+            'departemen_pengembali' => $request->departemen_pengembali,
+            'nama_admin_penerima' => $request->nama_admin_penerima,
+            'kondisi_dikembalikan' => $request->kondisi_dikembalikan,
+            'tanggal_pengembalian' => now()->toDateString(),
+
+            // 👇 INI KUNCINYA: Pastikan diisi $pathTtd
+            'tanda_tangan_pengembali' => $pathTtd,
+
+            'status' => 'Dikembalikan'
+        ]);
+
+        return redirect()->route('peminjaman.index')->with('success', 'Barang berhasil dikembalikan ke IT!');
+    }
+
+    public function exportExcel()
+    {
+        $peminjamans = Peminjaman::with('barang')->get();
+        $filename = "Laporan_Aset_BUMA_" . date('Y-m-d') . ".csv";
+
+        $headers = [
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$filename",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
+
+        // Sesuai request: TTD dihapus dari format Excel agar rapi
+        $columns = [
+            'ID BAST',
+            'Aset',
+            'Peminjam',
+            'Dept Peminjam',
+            'Tanggal Pinjam',
+            'Status',
+            'Pengembali',
+            'Dept Pengembali',
+            'Kondisi Akhir',
+            'Tanggal Kembali'
+        ];
+
+        $callback = function () use ($peminjamans, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            foreach ($peminjamans as $row) {
+                fputcsv($file, [
+                    $row->uuid,
+                    $row->barang->nama_barang,
+                    $row->nama_peminjam,
+                    $row->departemen_peminjam,
+                    $row->tanggal_peminjaman,
+                    $row->status,
+                    $row->nama_pengembali,
+                    $row->departemen_pengembali,
+                    $row->kondisi_dikembalikan,
+                    $row->tanggal_pengembalian
+                ]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    // Fungsi mengubah coretan Base64 ke File PNG
+    private function simpanTandaTangan($base64Data, $prefix)
+    {
+        if (!$base64Data) return null;
+
+        $image_parts = explode(";base64,", $base64Data);
+        $image_base64 = base64_decode($image_parts[1]);
+        $fileName = $prefix . '_' . uniqid() . '.png';
+
+        $folderPath = public_path('signatures/');
+        if (!file_exists($folderPath)) {
+            mkdir($folderPath, 0777, true);
         }
 
-        // Update status transaksi (Otomatis memicu trigger Audit Trail di Model)
-        $peminjaman->update(['status' => 'Dikembalikan']);
-
-        // Kembalikan status barang di master data agar bisa dipinjam lagi oleh orang lain
-        $peminjaman->barang->update(['status_ketersediaan' => 'Tersedia']);
-
-        return back()->with('success', 'Status aset berhasil diperbarui menjadi Dikembalikan.');
-    }
-
-    // 4. Mencetak Dokumen PDF + Embed QR Code
-    public function cetakPdf($id)
-    {
-        $peminjaman = Peminjaman::with(['karyawan', 'barang'])->findOrFail($id);
-
-        // Generate URL verifikasi menggunakan UUID untuk QR Code
-        $urlVerifikasi = route('peminjaman.verifikasi', $peminjaman->uuid); 
-        
-        // Generate gambar QR Code menjadi string PNG Base64
-        $qrCodeImage = base64_encode(QrCode::format('png')->size(100)->generate($urlVerifikasi));
-
-        // Load view cetak dan kirim datanya
-        $pdf = Pdf::loadView('peminjaman.pdf', compact('peminjaman', 'qrCodeImage'));
-        $pdf->setPaper('A4', 'portrait');
-
-        // Gunakan stream untuk preview di browser
-        return $pdf->stream('BAST_'.$peminjaman->uuid.'.pdf');
-    }
-
-    // 5. Halaman Verifikasi Publik (Dari Scan QR)
-    public function verifikasi($uuid)
-    {
-        // Mencari data berdasarkan UUID untuk mencegah eksploitasi ID (IDOR)
-        $peminjaman = Peminjaman::with(['karyawan', 'barang'])
-                                ->where('uuid', $uuid)
-                                ->firstOrFail();
-
-        return view('peminjaman.verifikasi', compact('peminjaman'));
+        file_put_contents($folderPath . $fileName, $image_base64);
+        return 'signatures/' . $fileName;
     }
 }
