@@ -6,6 +6,7 @@ use App\Models\Peminjaman;
 use App\Models\Barang;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PeminjamanController extends Controller
 {
@@ -17,7 +18,6 @@ class PeminjamanController extends Controller
 
     public function create()
     {
-        // Hanya tampilkan barang yang stoknya masih ada
         $barangs = Barang::where('stok', '>', 0)->get();
         return view('peminjaman.create', compact('barangs'));
     }
@@ -25,9 +25,9 @@ class PeminjamanController extends Controller
     public function store(Request $request)
     {
         $barang = Barang::findOrFail($request->barang_id);
-
-        // Ubah coretan jadi gambar, lalu simpan nama filenya ke variabel $pathTtd
-        $pathTtd = $this->simpanTandaTangan($request->tanda_tangan_peminjam, 'ambil');
+        
+        $pathTtdPeminjam = $this->simpanTandaTangan($request->tanda_tangan_peminjam, 'ambil_pic');
+        $pathTtdAdmin = $this->simpanTandaTangan($request->tanda_tangan_admin_penyerah, 'ambil_it');
 
         $barang->stok -= 1;
         $barang->save();
@@ -38,10 +38,8 @@ class PeminjamanController extends Controller
             'departemen_peminjam' => $request->departemen_peminjam,
             'nama_admin_penyerah' => $request->nama_admin_penyerah,
             'tanggal_peminjaman' => now()->toDateString(),
-
-            // 👇 INI KUNCINYA: Pastikan diisi $pathTtd, BUKAN $request->tanda_tangan_peminjam
-            'tanda_tangan_peminjam' => $pathTtd,
-
+            'tanda_tangan_peminjam' => $pathTtdPeminjam,
+            'tanda_tangan_admin_penyerah' => $pathTtdAdmin,
             'status' => 'Dipinjam'
         ]);
 
@@ -50,10 +48,7 @@ class PeminjamanController extends Controller
 
     public function formPengembalian($id)
     {
-        // 1. Ambil data transaksi berdasarkan ID beserta data barangnya
         $peminjaman = Peminjaman::with('barang')->findOrFail($id);
-
-        // 2. Buka halaman return, dan JANGAN LUPA bawa datanya (compact)
         return view('peminjaman.return', compact('peminjaman'));
     }
 
@@ -62,7 +57,8 @@ class PeminjamanController extends Controller
         $peminjaman = Peminjaman::findOrFail($id);
         $barang = Barang::findOrFail($peminjaman->barang_id);
 
-        $pathTtd = $this->simpanTandaTangan($request->tanda_tangan_pengembali, 'kembali');
+        $pathTtdPengembali = $this->simpanTandaTangan($request->tanda_tangan_pengembali, 'kembali_pic');
+        $pathTtdAdmin = $this->simpanTandaTangan($request->tanda_tangan_admin_penerima, 'kembali_it');
 
         $barang->stok += 1;
         $barang->save();
@@ -73,10 +69,8 @@ class PeminjamanController extends Controller
             'nama_admin_penerima' => $request->nama_admin_penerima,
             'kondisi_dikembalikan' => $request->kondisi_dikembalikan,
             'tanggal_pengembalian' => now()->toDateString(),
-
-            // 👇 INI KUNCINYA: Pastikan diisi $pathTtd
-            'tanda_tangan_pengembali' => $pathTtd,
-
+            'tanda_tangan_pengembali' => $pathTtdPengembali,
+            'tanda_tangan_admin_penerima' => $pathTtdAdmin,
             'status' => 'Dikembalikan'
         ]);
 
@@ -87,7 +81,7 @@ class PeminjamanController extends Controller
     {
         $peminjamans = Peminjaman::with('barang')->get();
         $filename = "Laporan_Aset_BUMA_" . date('Y-m-d') . ".csv";
-
+        
         $headers = [
             "Content-type"        => "text/csv",
             "Content-Disposition" => "attachment; filename=$filename",
@@ -96,36 +90,21 @@ class PeminjamanController extends Controller
             "Expires"             => "0"
         ];
 
-        // Sesuai request: TTD dihapus dari format Excel agar rapi
         $columns = [
-            'ID BAST',
-            'Aset',
-            'Peminjam',
-            'Dept Peminjam',
-            'Tanggal Pinjam',
-            'Status',
-            'Pengembali',
-            'Dept Pengembali',
-            'Kondisi Akhir',
-            'Tanggal Kembali'
+            'ID BAST', 'Aset', 'Peminjam', 'Dept Peminjam', 'Tanggal Pinjam', 
+            'Status', 'Pengembali', 'Dept Pengembali', 'Kondisi Akhir', 'Tanggal Kembali'
         ];
 
-        $callback = function () use ($peminjamans, $columns) {
+        $callback = function() use($peminjamans, $columns) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
-
+            
             foreach ($peminjamans as $row) {
                 fputcsv($file, [
-                    $row->uuid,
-                    $row->barang->nama_barang,
-                    $row->nama_peminjam,
-                    $row->departemen_peminjam,
-                    $row->tanggal_peminjaman,
-                    $row->status,
-                    $row->nama_pengembali,
-                    $row->departemen_pengembali,
-                    $row->kondisi_dikembalikan,
-                    $row->tanggal_pengembalian
+                    $row->uuid, $row->barang->nama_barang, $row->nama_peminjam, 
+                    $row->departemen_peminjam, $row->tanggal_peminjaman, 
+                    $row->status, $row->nama_pengembali, $row->departemen_pengembali, 
+                    $row->kondisi_dikembalikan, $row->tanggal_pengembalian
                 ]);
             }
             fclose($file);
@@ -134,21 +113,26 @@ class PeminjamanController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    // Fungsi mengubah coretan Base64 ke File PNG
+    public function cetakPDF($id)
+    {
+        $peminjaman = Peminjaman::with('barang')->findOrFail($id);
+        $pdf = Pdf::loadView('peminjaman.pdf', compact('peminjaman'));
+        $pdf->setPaper('A4', 'portrait');
+        $namaFile = 'BAST_' . $peminjaman->status . '_' . $peminjaman->barang->kode_aset . '.pdf';
+        return $pdf->stream($namaFile);
+    }
+
     private function simpanTandaTangan($base64Data, $prefix)
     {
         if (!$base64Data) return null;
-
         $image_parts = explode(";base64,", $base64Data);
         $image_base64 = base64_decode($image_parts[1]);
         $fileName = $prefix . '_' . uniqid() . '.png';
-
         $folderPath = public_path('signatures/');
         if (!file_exists($folderPath)) {
             mkdir($folderPath, 0777, true);
         }
-
         file_put_contents($folderPath . $fileName, $image_base64);
-        return 'signatures/' . $fileName;
+        return 'signatures/' . $fileName; 
     }
 }

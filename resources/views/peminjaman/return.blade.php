@@ -10,11 +10,10 @@
 <body class="bg-gray-100 text-gray-800 font-sans">
     
     <nav class="bg-[#003366] text-white px-6 py-3">
-        <div class="font-bold text-lg tracking-wide">PT BUMA Site IPR</div>
+        <div class="font-bold text-lg tracking-wide">IT SUPPORT SYSTEM | PT BUMA Site IPR</div>
     </nav>
 
     <div class="p-6 max-w-4xl mx-auto mt-4">
-        
         <div class="bg-white border border-gray-300 rounded-sm">
             <div class="bg-gray-100 border-b border-gray-300 p-4">
                 <h2 class="font-bold text-lg">Form Pengembalian Aset IT</h2>
@@ -52,20 +51,33 @@
                             <input type="text" name="kondisi_dikembalikan" required class="w-full border border-gray-400 p-2 text-sm rounded-sm focus:border-blue-600 outline-none">
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Penerima *</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nama IT Penerima *</label>
                             <input type="text" name="nama_admin_penerima" required class="w-full border border-gray-400 p-2 text-sm rounded-sm focus:border-blue-600 outline-none">
                         </div>
                     </div>
 
-                    <div class="mb-6">
-                        <div class="flex justify-between items-end mb-1">
-                            <label class="block text-sm font-semibold text-gray-700">Tanda Tangan Pengembali *</label>
-                            <button type="button" id="clear-pad" class="text-xs text-blue-600 hover:underline">Kosongkan Kanvas</button>
+                    <div class="grid grid-cols-2 gap-4 mb-6 border-t border-gray-300 pt-4">
+                        <div>
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="block text-sm font-semibold text-gray-700">Tanda Tangan Pengembali *</label>
+                                <button type="button" id="clear-pic" class="text-xs text-red-600 hover:underline">Hapus</button>
+                            </div>
+                            <div class="border border-gray-400 bg-gray-50 relative w-full h-40">
+                                <canvas id="pad-pic" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
+                            </div>
+                            <input type="hidden" name="tanda_tangan_pengembali" id="sig-pic" required>
                         </div>
-                        <div class="border border-gray-400 bg-gray-50 relative" style="width: 100%; height: 200px;">
-                            <canvas id="signature-pad" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
+
+                        <div>
+                            <div class="flex justify-between items-end mb-1">
+                                <label class="block text-sm font-semibold text-gray-700">Tanda Tangan IT (Penerima) *</label>
+                                <button type="button" id="clear-admin" class="text-xs text-red-600 hover:underline">Hapus</button>
+                            </div>
+                            <div class="border border-gray-400 bg-gray-50 relative w-full h-40">
+                                <canvas id="pad-admin" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
+                            </div>
+                            <input type="hidden" name="tanda_tangan_admin_penerima" id="sig-admin" required>
                         </div>
-                        <input type="hidden" name="tanda_tangan_pengembali" id="signature64" required>
                     </div>
 
                     <div class="flex justify-end space-x-2 border-t border-gray-200 pt-4">
@@ -78,28 +90,34 @@
     </div>
 
     <script>
-        var canvas = document.getElementById('signature-pad');
-        var signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgba(255, 255, 255, 0)' });
-        function resizeCanvas() {
-            var ratio = Math.max(window.devicePixelRatio || 1, 1);
-            canvas.width = canvas.offsetWidth * ratio;
-            canvas.height = canvas.offsetHeight * ratio;
-            canvas.getContext("2d").scale(ratio, ratio);
-            signaturePad.clear();
-        }
-        window.addEventListener("resize", resizeCanvas);
-        resizeCanvas();
+        var canvasPic = document.getElementById('pad-pic');
+        var canvasAdmin = document.getElementById('pad-admin');
+        
+        var sigPic = new SignaturePad(canvasPic, { backgroundColor: 'rgba(255,255,255,0)' });
+        var sigAdmin = new SignaturePad(canvasAdmin, { backgroundColor: 'rgba(255,255,255,0)' });
 
-        document.getElementById('clear-pad').addEventListener('click', function () {
-            signaturePad.clear();
-        });
+        function resizeCanvases() {
+            var ratio = Math.max(window.devicePixelRatio || 1, 1);
+            [canvasPic, canvasAdmin].forEach(canvas => {
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+            });
+            sigPic.clear(); sigAdmin.clear();
+        }
+        window.addEventListener("resize", resizeCanvases);
+        resizeCanvases();
+
+        document.getElementById('clear-pic').addEventListener('click', () => sigPic.clear());
+        document.getElementById('clear-admin').addEventListener('click', () => sigAdmin.clear());
 
         document.getElementById('form-kembali').addEventListener('submit', function (e) {
-            if (signaturePad.isEmpty()) {
+            if (sigPic.isEmpty() || sigAdmin.isEmpty()) {
                 e.preventDefault();
-                alert("Tanda Tangan Pengembali Wajib Diisi!");
+                alert("Kedua Tanda Tangan (Pengembali dan IT Penerima) Wajib Diisi!");
             } else {
-                document.getElementById('signature64').value = signaturePad.toDataURL("image/png");
+                document.getElementById('sig-pic').value = sigPic.toDataURL("image/png");
+                document.getElementById('sig-admin').value = sigAdmin.toDataURL("image/png");
             }
         });
     </script>

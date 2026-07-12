@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-BAST - IT Support BUMA</title>
+    <title>E-BAST - BUMA</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans">
     
     <!-- Navbar Korporat -->
     <nav class="bg-[#003366] text-white px-6 py-3 flex justify-between items-center">
-        <div class="font-bold text-lg tracking-wide">IT SUPPORT SYSTEM | PT BUMA Site IPR</div>
+        <div class="font-bold text-lg tracking-wide">PT BUMA Site IPR</div>
         <div class="text-sm">Login sebagai: Admin IT</div>
     </nav>
 
@@ -64,7 +64,7 @@
                                 @if($row->status == 'Dipinjam')
                                     <a href="{{ route('peminjaman.form_pengembalian', $row->id) }}" class="bg-orange-500 text-white px-2 py-1 rounded-sm text-xs hover:bg-orange-600 border border-orange-600">Proses Kembali</a>
                                 @endif
-                                <button class="bg-gray-200 text-gray-700 px-2 py-1 rounded-sm text-xs border border-gray-400 hover:bg-gray-300 cursor-not-allowed">Cetak PDF</button>
+                                <a href="{{ route('peminjaman.pdf', $row->id) }}" target="_blank" class="bg-gray-200 text-gray-800 px-3 py-1 rounded-sm text-xs border border-gray-400 hover:bg-gray-300 font-semibold inline-block shadow-sm">🖨️ Cetak PDF</a>
                             </td>
                         </tr>
                     @empty

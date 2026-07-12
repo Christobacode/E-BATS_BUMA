@@ -8,26 +8,26 @@ return new class extends Migration {
         Schema::create('peminjamans', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
-            
-            // Relasi ke barang saja (karyawan dihapus karena ketik manual)
             $table->foreignId('barang_id')->constrained('barangs')->onDelete('cascade');
             
-            // --- FASE 1: FORM PENGAMBILAN ---
-            $table->string('nama_peminjam');       // Ketik manual
-            $table->string('departemen_peminjam'); // Ketik manual
+            // --- FASE 1: PENGAMBILAN ---
+            $table->string('nama_peminjam');       
+            $table->string('departemen_peminjam'); 
             $table->string('nama_admin_penyerah');
             $table->date('tanggal_peminjaman');
-            $table->string('tanda_tangan_peminjam'); // Simpan path gambar PNG
+            $table->string('tanda_tangan_peminjam'); 
+            $table->string('tanda_tangan_admin_penyerah'); 
             
             $table->enum('status', ['Dipinjam', 'Dikembalikan'])->default('Dipinjam');
 
-            // --- FASE 2: FORM PENGEMBALIAN (Bisa kosong di awal) ---
+            // --- FASE 2: PENGEMBALIAN ---
             $table->string('nama_pengembali')->nullable();
             $table->string('departemen_pengembali')->nullable();
             $table->string('nama_admin_penerima')->nullable();
             $table->string('kondisi_dikembalikan')->nullable();
             $table->date('tanggal_pengembalian')->nullable();
-            $table->string('tanda_tangan_pengembali')->nullable(); // Simpan path gambar PNG
+            $table->string('tanda_tangan_pengembali')->nullable(); 
+            $table->string('tanda_tangan_admin_penerima')->nullable(); 
 
             $table->timestamps();
         });
