@@ -1,17 +1,26 @@
 <?php
+
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PeminjamanController;
 
-Route::get('/', [PeminjamanController::class, 'index'])->name('peminjaman.index');
+// 1. Dashboard (Beranda)
+Route::get('/', [PeminjamanController::class, 'dashboard'])->name('peminjaman.dashboard');
+
+// 2. Pusat Data BAST (Workspace) & Riwayat
+Route::get('/peminjaman', [PeminjamanController::class, 'index'])->name('peminjaman.index');
+Route::get('/riwayat', [PeminjamanController::class, 'riwayat'])->name('peminjaman.riwayat');
+
+// 3. API Autocomplete Karyawan
+Route::get('/karyawan/search', [PeminjamanController::class, 'searchKaryawan'])->name('karyawan.search');
+
+// 4. Form Penyerahan Aset (Peminjaman Baru)
 Route::get('/peminjaman/create', [PeminjamanController::class, 'create'])->name('peminjaman.create');
 Route::post('/peminjaman', [PeminjamanController::class, 'store'])->name('peminjaman.store');
 
-// Rute buat form pengembalian barang
-Route::get('/peminjaman/{id}/kembali', [PeminjamanController::class, 'formPengembalian'])->name('peminjaman.form_pengembalian');
-Route::post('/peminjaman/{id}/kembali', [PeminjamanController::class, 'prosesPengembalian'])->name('peminjaman.proses_pengembalian');
+// 5. Form Pengembalian Aset
+Route::get('/peminjaman/{id}/return', [PeminjamanController::class, 'formPengembalian'])->name('peminjaman.return');
+Route::post('/peminjaman/{id}/return', [PeminjamanController::class, 'prosesPengembalian'])->name('peminjaman.proses_pengembalian');
 
-// Rute buat export
-Route::get('/peminjaman/export/excel', [PeminjamanController::class, 'exportExcel'])->name('peminjaman.export');
-
-// Rute buat download pdf 
+// 6. Cetak Dokumen & Export
 Route::get('/peminjaman/{id}/pdf', [PeminjamanController::class, 'cetakPDF'])->name('peminjaman.pdf');
+Route::get('/export-csv', [PeminjamanController::class, 'exportExcel'])->name('peminjaman.export');

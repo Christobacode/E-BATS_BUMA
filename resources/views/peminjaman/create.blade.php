@@ -10,7 +10,7 @@
 <body class="bg-gray-100 text-gray-800 font-sans">
     
     <nav class="bg-[#003366] text-white px-6 py-3">
-        <div class="font-bold text-lg tracking-wide">IT SUPPORT SYSTEM | PT BUMA Site IPR</div>
+        <div class="font-bold text-lg tracking-wide">PT BUMA Site IPR</div>
     </nav>
 
     <div class="p-6 max-w-4xl mx-auto mt-4">
@@ -33,13 +33,29 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
+                    <!-- Input Nama dengan Autocomplete -->
+                    <div class="relative">
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Peminjam *</label>
-                        <input type="text" name="nama_peminjam" required class="w-full border border-gray-400 p-2 text-sm rounded-sm focus:border-blue-600 outline-none">
+                        <input type="text" id="nama_peminjam" name="nama_peminjam" autocomplete="off" required class="w-full border border-gray-400 p-2 text-sm rounded-sm focus:border-blue-600 outline-none" placeholder="Ketik nama karyawan...">
+                        
+                        <!-- Kotak Dropdown Hasil Pencarian (Disembunyikan default) -->
+                        <ul id="suggestion-box" class="absolute z-10 w-full bg-white border border-gray-300 mt-1 max-h-40 overflow-y-auto hidden shadow-lg rounded-sm text-sm"></ul>
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">NIK Peminjam </label>
+                        <input type="text" id="nik_peminjam" name="nik_peminjam" class="w-full border border-gray-400 p-2 text-sm rounded-sm bg-gray-50 focus:border-blue-600 outline-none" placeholder="Boleh dikosongkan">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Departemen *</label>
-                        <input type="text" name="departemen_peminjam" required class="w-full border border-gray-400 p-2 text-sm rounded-sm focus:border-blue-600 outline-none">
+                        <input type="text" id="departemen_peminjam" name="departemen_peminjam" required class="w-full border border-gray-400 p-2 text-sm rounded-sm bg-gray-50 focus:border-blue-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Lokasi Site</label>
+                        <input type="text" id="lokasi_peminjam" name="lokasi_peminjam" class="w-full border border-gray-400 p-2 text-sm rounded-sm bg-gray-50 focus:border-blue-600 outline-none" placeholder="Contoh: PLANT IPR">
                     </div>
                 </div>
 
@@ -48,6 +64,7 @@
                     <input type="text" name="nama_admin_penyerah" required class="w-full border border-gray-400 p-2 text-sm rounded-sm focus:border-blue-600 outline-none">
                 </div>
 
+                <!-- Area 2 Tanda Tangan -->
                 <div class="grid grid-cols-2 gap-4 mb-6 border-t border-gray-300 pt-4">
                     <div>
                         <div class="flex justify-between items-end mb-1">
@@ -81,6 +98,56 @@
     </div>
 
     <script>
+        // === LOGIKA AUTOCOMPLETE NAMA KARYAWAN ===
+        const inputNama = document.getElementById('nama_peminjam');
+        const suggestionBox = document.getElementById('suggestion-box');
+        
+        const inputNik = document.getElementById('nik_peminjam');
+        const inputDept = document.getElementById('departemen_peminjam');
+        const inputLokasi = document.getElementById('lokasi_peminjam');
+
+        inputNama.addEventListener('keyup', function() {
+            let query = this.value;
+            if(query.length > 1) { // Mulai mencari kalau sudah ngetik 2 huruf
+                fetch(`/karyawan/search?q=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    suggestionBox.innerHTML = '';
+                    if(data.length > 0) {
+                        suggestionBox.classList.remove('hidden');
+                        data.forEach(karyawan => {
+                            let li = document.createElement('li');
+                            li.className = 'p-2 border-b cursor-pointer hover:bg-blue-100';
+                            li.textContent = `${karyawan.nama} (${karyawan.nik}) - ${karyawan.departemen}`;
+                            
+                            // Jika nama dari dropdown diklik
+                            li.addEventListener('click', function() {
+                                inputNama.value = karyawan.nama;
+                                inputNik.value = karyawan.nik;
+                                inputDept.value = karyawan.departemen;
+                                inputLokasi.value = karyawan.lokasi_site;
+                                
+                                suggestionBox.classList.add('hidden'); // Sembunyikan dropdown
+                            });
+                            suggestionBox.appendChild(li);
+                        });
+                    } else {
+                        suggestionBox.classList.add('hidden');
+                    }
+                });
+            } else {
+                suggestionBox.classList.add('hidden');
+            }
+        });
+
+        // Sembunyikan dropdown kalau user klik di luar kotak
+        document.addEventListener('click', function(e) {
+            if(e.target !== inputNama && e.target !== suggestionBox) {
+                suggestionBox.classList.add('hidden');
+            }
+        });
+
+        // === LOGIKA SIGNATURE PAD ===
         var canvasAdmin = document.getElementById('pad-admin');
         var canvasPic = document.getElementById('pad-pic');
         

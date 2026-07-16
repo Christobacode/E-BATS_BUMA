@@ -10,7 +10,7 @@
 <body class="bg-gray-100 text-gray-800 font-sans">
     
     <nav class="bg-[#003366] text-white px-6 py-3">
-        <div class="font-bold text-lg tracking-wide">IT SUPPORT SYSTEM | PT BUMA Site IPR</div>
+        <div class="font-bold text-lg tracking-wide">PT BUMA Site IPR</div>
     </nav>
 
     <div class="p-6 max-w-4xl mx-auto mt-4">

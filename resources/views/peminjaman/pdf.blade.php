@@ -42,7 +42,7 @@
             <td>Page 1 of 1</td>
         </tr>
         <tr>
-            <td>STIT IPR</td>
+            <td>SITE IPR</td>
         </tr>
     </table>
 

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Karyawan extends Model
 {
-    // app/Models/Karyawan.php
-    protected $fillable = ['nik', 'nama', 'departemen']; 
+    protected $table = 'karyawans';
+    
+    // Model karyawan untuk mengelola data karyawan
+    protected $fillable = ['nik', 'nama', 'departemen', 'lokasi_site'];
 }
