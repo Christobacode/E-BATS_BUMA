@@ -10,85 +10,98 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class PeminjamanController extends Controller
 {
-    // 1. FUNGSI DASHBOARD & FITUR SEARCH
-    
+    // ==========================================
+    // 1. DASHBOARD & LIVE SEARCH KARYAWAN
+    // ==========================================
     public function dashboard()
     {
-        // Menghitung statistik untuk ditampilkan di kartu-kartu dashboard
         $totalTransaksi = Peminjaman::count();
         $sedangDipinjam = Peminjaman::where('status', 'Dipinjam')->count();
         $sudahDikembalikan = Peminjaman::where('status', 'Dikembalikan')->count();
-        
-        // Mencari departemen mana yang paling sering pinjam barang
         $topDepartemen = Peminjaman::select('departemen_peminjam')
             ->selectRaw('COUNT(*) as total')
             ->groupBy('departemen_peminjam')
             ->orderByDesc('total')
             ->first();
 
-        // Melempar data ke halaman view dashboard
         return view('peminjaman.dashboard', compact('totalTransaksi', 'sedangDipinjam', 'sudahDikembalikan', 'topDepartemen'));
     }
 
     public function searchKaryawan(Request $request)
     {
-        // Menangkap ketikan user (misal: "Bag")
         $query = $request->get('q');
-        // Mencari di tabel Karyawan yang namanya mirip dengan ketikan
         $karyawans = Karyawan::where('nama', 'LIKE', "%{$query}%")->get();
-        
-        // Membalas dalam format JSON agar bisa dibaca oleh Javascript di form
         return response()->json($karyawans);
     }
 
-
-    // 2. FUNGSI HALAMAN TABEL UTAMA
-
+    // ==========================================
+    // 2. DATA BAST & RIWAYAT (DENGAN SEARCH)
+    // ==========================================
     public function index()
     {
-        // Mengambil semua data peminjaman diurutkan dari yang terbaru
         $peminjamans = Peminjaman::with('barang')->latest()->get();
         return view('peminjaman.index', compact('peminjamans'));
     }
 
-    public function riwayat()
+    public function riwayat(Request $request)
     {
-        // Sama seperti index, tapi dilempar ke halaman view riwayat
-        $peminjamans = Peminjaman::with('barang')->latest()->get();
+        $query = Peminjaman::with('barang')->latest();
+
+        // LOGIKA PENCARIAN (Search)
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $query->where('nama_peminjam', 'LIKE', '%' . $search . '%')
+                  ->orWhere('nik_peminjam', 'LIKE', '%' . $search . '%')
+                  ->orWhereHas('barang', function($q) use ($search) {
+                      $q->where('kode_aset', 'LIKE', '%' . $search . '%')
+                        ->orWhere('nama_barang', 'LIKE', '%' . $search . '%');
+                  });
+        }
+
+        $peminjamans = $query->get();
         return view('peminjaman.riwayat', compact('peminjamans'));
     }
 
-
-    // 3. FUNGSI PENYERAHAN BARANG
-
+    // ==========================================
+    // 3. PROSES PENYERAHAN BARU
+    // ==========================================
     public function create()
     {
-        // Hanya tampilkan barang yang stoknya lebih dari 0 di dropdown form
-        $barangs = Barang::where('stok', '>', 0)->get();
+        // Hanya ambil barang yang statusnya Tersedia (tanpa cek stok)
+        $barangs = Barang::where('status', 'Tersedia')->get();
         return view('peminjaman.create', compact('barangs'));
     }
 
     public function store(Request $request)
     {
-        // Cari barang yang dipilih user
+        // KEAMANAN 1: Validasi ketat (mencegah input asal-asalan)
+        $request->validate([
+            'barang_id' => 'required|exists:barangs,id',
+            'nama_peminjam' => 'required|string|max:255',
+            'nik_peminjam' => 'nullable|string|max:50',
+            'departemen_peminjam' => 'required|string|max:100',
+            'lokasi_peminjam' => 'nullable|string|max:100',
+            'nama_admin_penyerah' => 'required|string|max:255',
+            'tanda_tangan_peminjam' => 'required',
+            'tanda_tangan_admin_penyerah' => 'required'
+        ]);
+
         $barang = Barang::findOrFail($request->barang_id);
         
-        // Proses simpan gambar coretan tanda tangan
         $pathTtdPeminjam = $this->simpanTandaTangan($request->tanda_tangan_peminjam, 'ambil_pic');
         $pathTtdAdmin = $this->simpanTandaTangan($request->tanda_tangan_admin_penyerah, 'ambil_it');
 
-        // POTONG STOK BARANG
-        $barang->stok -= 1;
-        $barang->save();
+        // LOGIKA BARU: Ubah Status Barang jadi 'Habis' (Dipinjam)
+        $barang->update(['status' => 'Habis']);
 
-        // Simpan data peminjaman ke database
+        // KEAMANAN 2: strip_tags() membersihkan kode jahat seperti <script> (Anti-XSS)
         Peminjaman::create([
             'barang_id' => $request->barang_id,
-            'nik_peminjam' => $request->nik_peminjam,
-            'nama_peminjam' => $request->nama_peminjam,
-            'departemen_peminjam' => $request->departemen_peminjam,
-            'lokasi_peminjam' => $request->lokasi_peminjam,
-            'nama_admin_penyerah' => $request->nama_admin_penyerah,
+            'nik_peminjam' => strip_tags($request->nik_peminjam),
+            'nama_peminjam' => strip_tags($request->nama_peminjam),
+            'departemen_peminjam' => strip_tags($request->departemen_peminjam),
+            'lokasi_peminjam' => strip_tags($request->lokasi_peminjam),
+            'nama_admin_penyerah' => strip_tags($request->nama_admin_penyerah),
             'tanggal_peminjaman' => now()->toDateString(),
             'tanda_tangan_peminjam' => $pathTtdPeminjam,
             'tanda_tangan_admin_penyerah' => $pathTtdAdmin,
@@ -98,37 +111,46 @@ class PeminjamanController extends Controller
         return redirect()->route('peminjaman.index')->with('success', 'BAST Penyerahan Aset berhasil dibuat!');
     }
 
-
-    // 4. FUNGSI PENGEMBALIAN BARANG
-
+    // ==========================================
+    // 4. PROSES PENGEMBALIAN
+    // ==========================================
     public function formPengembalian($id)
     {
-        // Buka form pengembalian berdasarkan ID suratnya
         $peminjaman = Peminjaman::with('barang')->findOrFail($id);
         return view('peminjaman.return', compact('peminjaman'));
     }
 
     public function prosesPengembalian(Request $request, $id)
     {
+        // KEAMANAN 1: Validasi ketat
+        $request->validate([
+            'nama_pengembali' => 'required|string|max:255',
+            'nik_pengembali' => 'nullable|string|max:50',
+            'departemen_pengembali' => 'required|string|max:100',
+            'lokasi_pengembali' => 'nullable|string|max:100',
+            'kondisi_dikembalikan' => 'required|string|max:255',
+            'nama_admin_penerima' => 'required|string|max:255',
+            'tanda_tangan_pengembali' => 'required',
+            'tanda_tangan_admin_penerima' => 'required'
+        ]);
+
         $peminjaman = Peminjaman::findOrFail($id);
         $barang = Barang::findOrFail($peminjaman->barang_id);
 
-        // Proses simpan gambar coretan tanda tangan pengembali
         $pathTtdPengembali = $this->simpanTandaTangan($request->tanda_tangan_pengembali, 'kembali_pic');
         $pathTtdAdmin = $this->simpanTandaTangan($request->tanda_tangan_admin_penerima, 'kembali_it');
 
-        // KEMBALIKAN STOK BARANG
-        $barang->stok += 1;
-        $barang->save();
+        // LOGIKA BARU: Ubah Status Barang kembali menjadi 'Tersedia'
+        $barang->update(['status' => 'Tersedia']);
 
-        // Update data peminjaman menjadi 'Dikembalikan'
+        // KEAMANAN 2: strip_tags() (Anti-XSS)
         $peminjaman->update([
-            'nik_pengembali' => $request->nik_pengembali,
-            'nama_pengembali' => $request->nama_pengembali,
-            'departemen_pengembali' => $request->departemen_pengembali,
-            'lokasi_pengembali' => $request->lokasi_pengembali,
-            'nama_admin_penerima' => $request->nama_admin_penerima,
-            'kondisi_dikembalikan' => $request->kondisi_dikembalikan,
+            'nik_pengembali' => strip_tags($request->nik_pengembali),
+            'nama_pengembali' => strip_tags($request->nama_pengembali),
+            'departemen_pengembali' => strip_tags($request->departemen_pengembali),
+            'lokasi_pengembali' => strip_tags($request->lokasi_pengembali),
+            'nama_admin_penerima' => strip_tags($request->nama_admin_penerima),
+            'kondisi_dikembalikan' => strip_tags($request->kondisi_dikembalikan),
             'tanggal_pengembalian' => now()->toDateString(),
             'tanda_tangan_pengembali' => $pathTtdPengembali,
             'tanda_tangan_admin_penerima' => $pathTtdAdmin,
@@ -138,28 +160,22 @@ class PeminjamanController extends Controller
         return redirect()->route('peminjaman.index')->with('success', 'Barang berhasil dikembalikan ke IT!');
     }
 
-
     // ==========================================
-    // 5. FUNGSI CETAK DOKUMEN & EXPORT
+    // 5. FITUR CETAK & EXPORT
     // ==========================================
-
     public function cetakPDF($id)
     {
         $peminjaman = Peminjaman::with('barang')->findOrFail($id);
-        // Load file view PDF dan masukkan datanya
         $pdf = Pdf::loadView('peminjaman.pdf', compact('peminjaman'));
         $pdf->setPaper('A4', 'portrait');
-        
-        // Buat nama file otomatis berdasarkan status dan kode aset
-        $namaFile = 'BAST_' . $peminjaman->status . '_' . $peminjaman->barang->kode_aset . '.pdf';
-        
-        return $pdf->stream($namaFile); // Tampilkan di browser
+        $namaFile = 'BUMA_BAST' . $peminjaman->status . '_' . $peminjaman->barang->kode_aset . '.pdf';
+        return $pdf->stream($namaFile);
     }
 
     public function exportExcel()
     {
         $peminjamans = Peminjaman::with('barang')->get();
-        $filename = "Laporan_Aset_BUMA_" . date('Y-m-d') . ".csv";
+        $filename = "Laporan_Aset BUMA" . date('Y-m-d') . ".csv";
         
         $headers = [
             "Content-type" => "text/csv",
@@ -186,27 +202,16 @@ class PeminjamanController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-
-    // ==========================================
-    // 6. FUNGSI BANTUAN (PRIVATE HELPER)
-    // ==========================================
-
+    // 6. PRIVATE UTILS (SIMPAN GAMBAR TTD)
     private function simpanTandaTangan($base64Data, $prefix)
     {
-        // Fungsi ini bertugas mengubah data coretan Canvas (Base64) menjadi file gambar PNG betulan
         if (!$base64Data) return null;
-        
         $image_parts = explode(";base64,", $base64Data);
         $image_base64 = base64_decode($image_parts[1]);
         $fileName = $prefix . '_' . uniqid() . '.png';
         $folderPath = public_path('signatures/');
-        
-        if (!file_exists($folderPath)) { 
-            mkdir($folderPath, 0777, true); 
-        }
-        
+        if (!file_exists($folderPath)) { mkdir($folderPath, 0777, true); }
         file_put_contents($folderPath . $fileName, $image_base64);
-        
         return 'signatures/' . $fileName; 
     }
 }

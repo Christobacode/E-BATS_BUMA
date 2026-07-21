@@ -8,7 +8,7 @@ class Barang extends Model
 {
     use HasFactory;
     protected $table = 'barangs';
-    protected $fillable = ['kode_aset', 'nama_barang', 'stok', 'status'];
+    protected $fillable = ['kode_aset', 'nama_barang', 'status'];
 
     public function peminjamans()
     {

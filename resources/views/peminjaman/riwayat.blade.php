@@ -3,11 +3,22 @@
 
 @section('content')
 <div class="bg-white border border-gray-300 rounded-lg shadow-sm">
-    <div class="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50 rounded-t-lg">
+    <div class="p-4 border-b border-gray-300 flex flex-col md:flex-row justify-between items-center bg-gray-50 rounded-t-lg gap-4">
         <h2 class="font-bold text-lg text-gray-700">Histori Keseluruhan</h2>
-        <a href="{{ route('peminjaman.export') }}" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 font-semibold shadow-sm transition-colors">
-            <i class="fas fa-file-csv mr-1"></i> Export Data CSV
-        </a>
+        
+        <div class="flex items-center space-x-2 w-full md:w-auto">
+            <!-- Form Pencarian Baru -->
+            <form action="{{ route('peminjaman.riwayat') }}" method="GET" class="flex w-full md:w-auto">
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari Nama / SAP..." class="border border-gray-300 rounded-l-md p-2 text-sm outline-none focus:border-blue-500 w-full md:w-64">
+                <button type="submit" class="bg-blue-600 text-white px-3 py-2 rounded-r-md hover:bg-blue-700 transition-colors shadow-sm">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+            
+            <a href="{{ route('peminjaman.export') }}" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 font-semibold shadow-sm transition-colors whitespace-nowrap">
+                <i class="fas fa-file-csv mr-1"></i> Export CSV
+            </a>
+        </div>
     </div>
     
     <div class="p-6">
@@ -17,7 +28,7 @@
                     <th class="p-3 border border-gray-400">Kode SAP</th>
                     <th class="p-3 border border-gray-400">Peminjam Awal</th>
                     <th class="p-3 border border-gray-400">Tgl Pinjam</th>
-                    <th class="p-3 border border-gray-400">Pengembali</th>
+                    <th class="p-3 border border-gray-400">Pengembali (Jika Selesai)</th>
                     <th class="p-3 border border-gray-400">Tgl Kembali</th>
                     <th class="p-3 border border-gray-400 text-center">Status</th>
                 </tr>
@@ -29,7 +40,6 @@
                     <td class="p-3">{{ $p->nama_peminjam }}<br><span class="text-xs text-gray-500">{{ $p->nik_peminjam }}</span></td>
                     <td class="p-3">{{ \Carbon\Carbon::parse($p->tanggal_peminjaman)->format('d/m/Y') }}</td>
                     <td class="p-3">{{ $p->nama_pengembali ?? '-' }}<br><span class="text-xs text-gray-500">{{ $p->nik_pengembali }}</span></td>
-                    
                     <td class="p-3">{{ $p->tanggal_pengembalian ? \Carbon\Carbon::parse($p->tanggal_pengembalian)->format('d/m/Y') : '-' }}</td>
                     <td class="p-3 text-center">
                         @if($p->status == 'Dipinjam') <span class="text-orange-600 font-bold">Dipinjam</span>
@@ -37,7 +47,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="6" class="p-6 text-center text-gray-500">Belum ada riwayat.</td></tr>
+                <tr><td colspan="6" class="p-6 text-center text-gray-500">Belum ada riwayat transaksi.</td></tr>
                 @endforelse
             </tbody>
         </table>

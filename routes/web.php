@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PeminjamanController;
 
 // 1. Dashboard (Beranda)
-// Jika user membuka halaman depan '/', arahkan ke fungsi dashboard
+// Halaman beranda atau halaman yang pertama kali dimunculkan saat dibuka
 Route::get('/', [PeminjamanController::class, 'dashboard'])->name('peminjaman.dashboard');
 
 // 2. Pusat Data BAST (Workspace) & Riwayat
@@ -14,7 +14,7 @@ Route::get('/peminjaman', [PeminjamanController::class, 'index'])->name('peminja
 Route::get('/riwayat', [PeminjamanController::class, 'riwayat'])->name('peminjaman.riwayat');
 
 // 3. API Autocomplete Karyawan
-// Jalur rahasia (tanpa tampilan) untuk mencari nama karyawan di database secara real-time
+// untuk mencari nama karyawan di database secara real-time
 Route::get('/karyawan/search', [PeminjamanController::class, 'searchKaryawan'])->name('karyawan.search');
 
 // 4. Form Penyerahan Aset (Peminjaman Baru)
@@ -30,7 +30,7 @@ Route::get('/peminjaman/{id}/return', [PeminjamanController::class, 'formPengemb
 Route::post('/peminjaman/{id}/return', [PeminjamanController::class, 'prosesPengembalian'])->name('peminjaman.proses_pengembalian');
 
 // 6. Cetak Dokumen & Export
-// Jalur untuk men-generate PDF berdasarkan ID surat
+// untuk men-generate PDF berdasarkan ID surat
 Route::get('/peminjaman/{id}/pdf', [PeminjamanController::class, 'cetakPDF'])->name('peminjaman.pdf');
-// Jalur untuk men-download file CSV (Excel)
+// untuk men-download file CSV (Excel)
 Route::get('/export-csv', [PeminjamanController::class, 'exportExcel'])->name('peminjaman.export');

@@ -5,7 +5,7 @@
 <div class="bg-white border border-gray-300 rounded-lg shadow-sm">
     
     <div class="p-4 border-b border-gray-300 flex justify-between items-center bg-gray-50 rounded-t-lg">
-        <h2 class="font-bold text-lg text-gray-700">Tabel Transaksi Berjalan</h2>
+        <h2 class="font-bold text-lg text-gray-700">Tabel Peminjaman Yang Sedang Berjalan</h2>
         <a href="{{ route('peminjaman.create') }}" class="bg-[#001f3f] text-white px-4 py-2 rounded-md text-sm hover:bg-blue-900 font-semibold shadow-sm transition-colors">
             <i class="fas fa-plus mr-1"></i> Buat BAST Baru
         </a>
@@ -25,7 +25,7 @@
                     <th class="p-3 border-b border-gray-300">Peminjam Saat Ini</th>
                     <th class="p-3 border-b border-gray-300">Tgl Pinjam</th>
                     <th class="p-3 border-b border-gray-300 text-center">Status</th>
-                    <th class="p-3 border-b border-gray-300 text-center">Aksi / Dokumen</th>
+                    <th class="p-3 border-b border-gray-300 text-center">Kembalikan / Dokumen</th>
                 </tr>
             </thead>
             <tbody>

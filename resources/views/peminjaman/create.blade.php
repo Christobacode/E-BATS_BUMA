@@ -10,16 +10,19 @@
     <form action="{{ route('peminjaman.store') }}" method="POST" id="form-pinjam" class="p-6">
         @csrf
         
+        <!-- Pilihan Barang -->
         <div class="mb-4">
             <label class="block text-sm font-semibold text-gray-700 mb-1">Aset yang Dipinjamkan *</label>
             <select name="barang_id" required class="w-full border border-gray-400 p-2 text-sm rounded-md bg-gray-50 focus:border-blue-600 outline-none">
-                <option value="">-- Pilih Aset IT (Berdasarkan Stok) --</option>
+                <option value="">-- Pilih Aset IT (Hanya yang Tersedia) --</option>
                 @foreach($barangs as $brg)
-                    <option value="{{ $brg->id }}">{{ $brg->kode_aset }} - {{ $brg->nama_barang }} (Sisa Stok: {{ $brg->stok }})</option>
+                    <!-- Teks stok sudah dihilangkan di sini -->
+                    <option value="{{ $brg->id }}">{{ $brg->kode_aset }} - {{ $brg->nama_barang }}</option>
                 @endforeach
             </select>
         </div>
 
+        <!-- Baris Nama dan NIK -->
         <div class="grid grid-cols-2 gap-4 mb-4">
             <div class="relative">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Peminjam *</label>
@@ -32,6 +35,7 @@
             </div>
         </div>
 
+        <!-- Baris Departemen dan Lokasi -->
         <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Departemen *</label>
@@ -43,11 +47,13 @@
             </div>
         </div>
 
+        <!-- Admin Penyerah -->
         <div class="mb-6 border-b border-gray-200 pb-6">
             <label class="block text-sm font-semibold text-gray-700 mb-1">Nama IT Support (Penyerah) *</label>
             <input type="text" name="nama_admin_penyerah" required class="w-full border border-gray-400 p-2 text-sm rounded-md focus:border-blue-600 outline-none">
         </div>
 
+        <!-- Area Kanvas Tanda Tangan -->
         <div class="grid grid-cols-2 gap-4 mb-6 pt-2">
             <div>
                 <div class="flex justify-between items-end mb-1">
@@ -67,6 +73,7 @@
             </div>
         </div>
 
+        <!-- Tombol Aksi -->
         <div class="flex justify-end space-x-2 border-t border-gray-200 pt-4 mt-4">
             <a href="{{ route('peminjaman.index') }}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md text-sm border border-gray-400 hover:bg-gray-300 font-semibold">Batal</a>
             <button type="submit" class="bg-[#001f3f] text-white px-6 py-2 rounded-md text-sm hover:bg-blue-900 font-bold shadow-md"><i class="fas fa-save mr-1"></i> Simpan & Terbitkan BAST</button>
@@ -74,36 +81,32 @@
     </form>
 </div>
 
+<!-- SCRIPT LIVE SEARCH & SIGNATURE PAD -->
 @push('scripts')
 <script>
-    // 1. LOGIKA AUTOCOMPLETE (PENCARIAN NAMA KARYAWAN)
     const inputNama = document.getElementById('nama_peminjam');
     const suggestionBox = document.getElementById('suggestion-box');
     const inputNik = document.getElementById('nik_peminjam');
     const inputDept = document.getElementById('departemen_peminjam');
     const inputLokasi = document.getElementById('lokasi_peminjam');
 
-    // Ketika user mengetik di kotak nama...
     inputNama.addEventListener('keyup', function() {
         let query = this.value;
-        if(query.length > 1) { // Mulai mencari jika lebih dari 1 huruf
-            // Memanggil "Jalur Rahasia" API yang kita buat di web.php
+        if(query.length > 1) {
             fetch(`/karyawan/search?q=${query}`).then(r => r.json()).then(data => {
-                suggestionBox.innerHTML = ''; // Bersihkan kotak dropdown
+                suggestionBox.innerHTML = '';
                 if(data.length > 0) {
-                    suggestionBox.classList.remove('hidden'); // Tampilkan dropdown
+                    suggestionBox.classList.remove('hidden');
                     data.forEach(k => {
                         let li = document.createElement('li');
                         li.className = 'p-2 border-b cursor-pointer hover:bg-blue-100';
                         li.textContent = `${k.nama} (${k.nik}) - ${k.departemen}`;
-                        
-                        // Kalau salah satu nama diklik, otomatis isi kotak lainnya!
                         li.addEventListener('click', function() {
                             inputNama.value = k.nama; 
                             inputNik.value = k.nik; 
                             inputDept.value = k.departemen; 
                             inputLokasi.value = k.lokasi_site;
-                            suggestionBox.classList.add('hidden'); // Sembunyikan dropdown lagi
+                            suggestionBox.classList.add('hidden');
                         });
                         suggestionBox.appendChild(li);
                     });
@@ -111,18 +114,14 @@
             });
         } else { suggestionBox.classList.add('hidden'); }
     });
-    // Sembunyikan dropdown kalau user klik di luar kotak
     document.addEventListener('click', function(e) { if(e.target !== inputNama && e.target !== suggestionBox) suggestionBox.classList.add('hidden'); });
 
-
-    // 2. LOGIKA KANVAS TANDA TANGAN (SIGNATURE PAD)
     var canvasAdmin = document.getElementById('pad-admin'); 
     var canvasPic = document.getElementById('pad-pic');
     
     var sigAdmin = new SignaturePad(canvasAdmin, { backgroundColor: 'rgba(255,255,255,0)' }); 
     var sigPic = new SignaturePad(canvasPic, { backgroundColor: 'rgba(255,255,255,0)' });
     
-    // Fungsi agar kanvas responsif kalau ukuran layar berubah
     function resizeCanvases() {
         var ratio = Math.max(window.devicePixelRatio || 1, 1);
         [canvasAdmin, canvasPic].forEach(canvas => {
@@ -134,11 +133,9 @@
     }
     window.addEventListener("resize", resizeCanvases); resizeCanvases();
     
-    // Tombol hapus tanda tangan
     document.getElementById('clear-admin').addEventListener('click', () => sigAdmin.clear());
     document.getElementById('clear-pic').addEventListener('click', () => sigPic.clear());
     
-    // Sebelum form dikirim, ubah coretan jadi gambar Base64
     document.getElementById('form-pinjam').addEventListener('submit', function (e) {
         if (sigAdmin.isEmpty() || sigPic.isEmpty()) { 
             e.preventDefault(); 
