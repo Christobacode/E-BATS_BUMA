@@ -53,14 +53,14 @@ class PeminjamanController extends Controller
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
             $query->where('nama_peminjam', 'LIKE', '%' . $search . '%')
-                  ->orWhere('nik_peminjam', 'LIKE', '%' . $search . '%')
-                  ->orWhereHas('barang', function($q) use ($search) {
-                      $q->where('kode_aset', 'LIKE', '%' . $search . '%')
+                ->orWhere('nik_peminjam', 'LIKE', '%' . $search . '%')
+                ->orWhereHas('barang', function ($q) use ($search) {
+                    $q->where('kode_aset', 'LIKE', '%' . $search . '%')
                         ->orWhere('nama_barang', 'LIKE', '%' . $search . '%');
-                  });
+                });
         }
 
-        $peminjamans = $query->get();
+        $peminjamans = $query->paginate(50);
         return view('peminjaman.riwayat', compact('peminjamans'));
     }
 
@@ -89,7 +89,7 @@ class PeminjamanController extends Controller
         ]);
 
         $barang = Barang::findOrFail($request->barang_id);
-        
+
         $pathTtdPeminjam = $this->simpanTandaTangan($request->tanda_tangan_peminjam, 'ambil_pic');
         $pathTtdAdmin = $this->simpanTandaTangan($request->tanda_tangan_admin_penyerah, 'ambil_it');
 
@@ -178,7 +178,7 @@ class PeminjamanController extends Controller
     {
         $peminjamans = Peminjaman::with('barang')->get();
         $filename = "Laporan_Aset BUMA" . date('Y-m-d') . ".csv";
-        
+
         $headers = [
             "Content-type" => "text/csv",
             "Content-Disposition" => "attachment; filename=$filename",
@@ -189,14 +189,22 @@ class PeminjamanController extends Controller
 
         $columns = ['ID BAST', 'Aset', 'Peminjam', 'NIK', 'Dept', 'Lokasi', 'Tgl Pinjam', 'Status', 'Pengembali', 'Tgl Kembali', 'Kondisi'];
 
-        $callback = function() use($peminjamans, $columns) {
+        $callback = function () use ($peminjamans, $columns) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
             foreach ($peminjamans as $row) {
                 fputcsv($file, [
-                    $row->uuid, $row->barang->kode_aset . " - " . $row->barang->nama_barang, 
-                    $row->nama_peminjam, $row->nik_peminjam, $row->departemen_peminjam, $row->lokasi_peminjam, $row->tanggal_peminjaman, 
-                    $row->status, $row->nama_pengembali, $row->tanggal_pengembalian, $row->kondisi_dikembalikan
+                    $row->uuid,
+                    $row->barang->kode_aset . " - " . $row->barang->nama_barang,
+                    $row->nama_peminjam,
+                    $row->nik_peminjam,
+                    $row->departemen_peminjam,
+                    $row->lokasi_peminjam,
+                    $row->tanggal_peminjaman,
+                    $row->status,
+                    $row->nama_pengembali,
+                    $row->tanggal_pengembalian,
+                    $row->kondisi_dikembalikan
                 ]);
             }
             fclose($file);
@@ -214,88 +222,136 @@ class PeminjamanController extends Controller
         $image_base64 = base64_decode($image_parts[1]);
         $fileName = $prefix . '_' . uniqid() . '.png';
         $folderPath = public_path('signatures/');
-        if (!file_exists($folderPath)) { mkdir($folderPath, 0777, true); }
+        if (!file_exists($folderPath)) {
+            mkdir($folderPath, 0777, true);
+        }
         file_put_contents($folderPath . $fileName, $image_base64);
-        return 'signatures/' . $fileName; 
+        return 'signatures/' . $fileName;
     }
-    
+
     // ==========================================
     // 7. IMPORT CSV (MASTER KARYAWAN, MASTER BARANG, DATA TRANSAKSI)
     // ==========================================
-    public function importCsv(Request $request)
+    public function importExcel(Request $request)
     {
-        // Validasi file yang diunggah
         $request->validate([
-            'file' => 'required|mimes:csv,txt'
+            'csv_file' => 'required|mimes:csv,txt'
         ]);
 
-        $file = $request->file('file');
-        $handle = fopen($file->getPathname(), "r");
-        
-        // Membaca baris pertama sebagai header
-        $header = fgetcsv($handle, 1000, ","); 
+        $file = $request->file('csv_file');
+
+        // 1. Baca File dan Perbaiki Encoding
+        $fileContent = file_get_contents($file->getPathname());
+        $fileContent = mb_convert_encoding($fileContent, 'UTF-8', 'ISO-8859-1');
+
+        $tempPath = sys_get_temp_dir() . '/import_temp.csv';
+        file_put_contents($tempPath, $fileContent);
+        $handle = fopen($tempPath, "r");
+
+        // 2. Deteksi Delimiter Paling Akurat (Hitung jumlah ; vs , di baris pertama)
+        $firstLine = fgets($handle);
+        $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+        rewind($handle); // Kembalikan ke baris paling atas
+
+        // 3. Baca Header
+        $header = fgetcsv($handle, 1000, $delimiter);
+        $header[0] = preg_replace('/[\xEF\xBB\xBF]/', '', $header[0]); // Hapus karakter BOM Excel
+        $header = array_map('trim', $header);
 
         DB::beginTransaction();
         try {
-            while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
-                // Menggabungkan header sebagai key dan row sebagai value
-                $data = array_combine($header, $row);
+            $countInserted = 0;
 
-                // 1. Mencari ID Barang berdasarkan kode_aset (asumsi CSV punya kolom kode_aset)
-                $barang = Barang::where('kode_aset', $data['kode_aset'])->first();
-                
-                if (!$barang) {
-                    continue; // Skip data jika barang tidak terdaftar di database
+            while (($row = fgetcsv($handle, 1000, $delimiter)) !== FALSE) {
+                if (empty(array_filter($row))) continue;
+
+                // Anti-Crash: Sesuaikan jumlah kolom baris dengan header
+                if (count($row) > count($header)) {
+                    $row = array_slice($row, 0, count($header));
+                } elseif (count($row) < count($header)) {
+                    $row = array_pad($row, count($header), '');
                 }
 
-                // 2. Logika Pemisah "Peminjaman" (Berjalan) dan "Riwayat" (Selesai)
-                // Mengecek apakah ada tanggal pengembalian atau dari kolom status di CSV
-                $isSelesai = !empty($data['tanggal_pengembalian']); 
+                $row = array_map('trim', $row);
+                $data = array_combine($header, $row);
+
+                // --- 4. MENCARI ATAU MEMBUAT BARANG ---
+                $kodeAssetCsv = $data['kode_sap'] ?? ($data['kode_aset'] ?? null);
+                if (empty($kodeAssetCsv)) continue;
+
+                $barang = Barang::where('kode_aset', $kodeAssetCsv)->first();
+                if (!$barang) {
+                    $barang = Barang::create([
+                        'kode_aset' => $kodeAssetCsv,
+                        'nama_barang' => 'Aset Import (' . $kodeAssetCsv . ')',
+                        'stok' => 1,
+                        'status' => 'Habis',
+                    ]);
+                }
+
+                // --- 5. PARSER TANGGAL & STATUS ---
+                $isSelesai = !empty($data['tanggal_pengembalian']);
                 $status = $isSelesai ? 'Dikembalikan' : 'Dipinjam';
 
-                // 3. Insert Data ke Tabel Peminjamans
+                $parseDate = function ($tgl) {
+                    if (empty($tgl)) return null;
+                    try {
+                        return \Carbon\Carbon::parse(str_replace(['/', '.'], '-', $tgl))->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        return now()->format('Y-m-d');
+                    }
+                };
+                $tanggalTransaksi = $parseDate($data['tgl_tndterima'] ?? ($data['tanggal_peminjaman'] ?? null));
+
+                // --- 6. DATA PEMINJAM ---
+                $nikPinjam = $data['nik_penerima'] ?? ($data['nik_penyerah'] ?? ($data['nik_peminjam'] ?? '-'));
+                $namaPinjam = $data['nama_peminjam'] ?? 'Karyawan (Import)';
+                $deptPinjam = $data['departemen_peminjam'] ?? ($data['lokasi'] ?? '-');
+                $sitePinjam = $data['lokasi_peminjam'] ?? ($data['Site'] ?? '-');
+
+                // --- 7. INSERT DATA TRANSAKSI ---
                 Peminjaman::create([
-                    'uuid' => Str::uuid(), // Generate UUID otomatis
+                    'uuid' => (string) Str::uuid(),
                     'barang_id' => $barang->id,
-                    
-                    // --- Data Peminjaman ---
-                    'nik_peminjam' => $data['nik_peminjam'] ?? null,
-                    'nama_peminjam' => $data['nama_peminjam'],
-                    'departemen_peminjam' => $data['departemen_peminjam'],
-                    'lokasi_peminjam' => $data['lokasi_peminjam'] ?? null,
-                    'nama_admin_penyerah' => $data['nama_admin_penyerah'],
-                    'tanggal_peminjaman' => $data['tanggal_peminjaman'],
-                    
-                    // --- BYPASS TTD PEMINJAMAN ---
+
+                    'nik_peminjam' => $nikPinjam,
+                    'nama_peminjam' => $namaPinjam,
+                    'departemen_peminjam' => $deptPinjam,
+                    'lokasi_peminjam' => $sitePinjam,
+                    'nama_admin_penyerah' => $data['nama_admin_penyerah'] ?? 'Sistem Import',
+                    'tanggal_peminjaman' => $tanggalTransaksi,
+
                     'tanda_tangan_peminjam' => 'bypass_peminjam.png',
                     'tanda_tangan_admin_penyerah' => 'bypass_admin.png',
-                    
+
                     'status' => $status,
 
-                    // --- Data Pengembalian (Bisa Null jika masih berjalan) ---
                     'nik_pengembali' => $isSelesai ? ($data['nik_pengembali'] ?? null) : null,
                     'nama_pengembali' => $isSelesai ? ($data['nama_pengembali'] ?? null) : null,
                     'departemen_pengembali' => $isSelesai ? ($data['departemen_pengembali'] ?? null) : null,
                     'lokasi_pengembali' => $isSelesai ? ($data['lokasi_pengembali'] ?? null) : null,
                     'nama_admin_penerima' => $isSelesai ? ($data['nama_admin_penerima'] ?? null) : null,
-                    'kondisi_dikembalikan' => $isSelesai ? ($data['kondisi_dikembalikan'] ?? null) : null,
-                    'tanggal_pengembalian' => $isSelesai ? $data['tanggal_pengembalian'] : null,
-                    
-                    // --- BYPASS TTD PENGEMBALIAN (Hanya jika status selesai) ---
+                    'kondisi_dikembalikan' => $isSelesai ? ($data['kondisi_dikembalikan'] ?? 'Baik') : null,
+                    'tanggal_pengembalian' => $isSelesai ? $parseDate($data['tanggal_pengembalian']) : null,
+
                     'tanda_tangan_pengembali' => $isSelesai ? 'bypass_pengembali.png' : null,
                     'tanda_tangan_admin_penerima' => $isSelesai ? 'bypass_admin_penerima.png' : null,
                 ]);
+
+                $countInserted++;
             }
 
             DB::commit();
             fclose($handle);
+            unlink($tempPath);
 
-            return redirect()->back()->with('success', 'Data CSV berhasil diimport!');
+            return redirect()->back()->with('success', "Import berhasil! Sebanyak {$countInserted} baris data telah ditambahkan.");
         } catch (\Exception $e) {
             DB::rollBack();
-            fclose($handle);
-            
-            return redirect()->back()->with('error', 'Terjadi kesalahan saat import: ' . $e->getMessage());
+            if (isset($handle) && is_resource($handle)) fclose($handle);
+            if (isset($tempPath) && file_exists($tempPath)) unlink($tempPath);
+
+            return redirect()->back()->with('error', 'Gagal Import: ' . $e->getMessage());
         }
     }
 }

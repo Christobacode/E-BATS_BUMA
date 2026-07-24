@@ -73,7 +73,7 @@
             </tbody>
         </table>
 
-        <!-- Menampilkan Tombol Pagination (Tambahan Baru) -->
+        <!-- Menampilkan Tombol Pagination biar ga ngeload semua datanya langsung tapi dibkin per 50 -->
         <div class="mt-6 mb-4 flex justify-center">
             {{ $peminjamans->appends(request()->query())->links() }}
         </div>
