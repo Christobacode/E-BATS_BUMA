@@ -30,7 +30,10 @@ Route::get('/peminjaman/{id}/return', [PeminjamanController::class, 'formPengemb
 Route::post('/peminjaman/{id}/return', [PeminjamanController::class, 'prosesPengembalian'])->name('peminjaman.proses_pengembalian');
 
 // 6. Cetak Dokumen & Export
-// untuk men-generate PDF berdasarkan ID surat
+// untuk men-generate PDF berdasarkan ID surat dari barang yang dipinjam
 Route::get('/peminjaman/{id}/pdf', [PeminjamanController::class, 'cetakPDF'])->name('peminjaman.pdf');
 // untuk men-download file CSV (Excel)
 Route::get('/export-csv', [PeminjamanController::class, 'exportExcel'])->name('peminjaman.export');
+
+//Untuk menambahkan import csv ke web BATS
+Route::post('/peminjaman/import', [PeminjamanController::class, 'importExcel'])->name('peminjaman.import');

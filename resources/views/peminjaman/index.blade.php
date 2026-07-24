@@ -59,6 +59,9 @@
                 @endforelse
             </tbody>
         </table>
+        <div class="mt-6 mb-4 flex justify-center">
+            {{ $peminjamans->appends(request()->query())->links() }}
+        </div>
     </div>
 </div>
 @endsection
