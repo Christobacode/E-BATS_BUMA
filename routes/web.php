@@ -37,3 +37,7 @@ Route::get('/export-csv', [PeminjamanController::class, 'exportExcel'])->name('p
 
 //Untuk menambahkan import csv ke web BATS
 Route::post('/peminjaman/import', [PeminjamanController::class, 'importExcel'])->name('peminjaman.import');
+// Route untuk Import Master Barang
+Route::post('/barang/import', [PeminjamanController::class, 'importBarang'])->name('barang.import');
+// Route untuk Import Master Karyawan
+Route::post('/karyawan/import', [PeminjamanController::class, 'importKaryawan'])->name('karyawan.import');

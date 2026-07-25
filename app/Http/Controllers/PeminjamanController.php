@@ -232,6 +232,9 @@ class PeminjamanController extends Controller
     // ==========================================
     // 7. IMPORT CSV (MASTER KARYAWAN, MASTER BARANG, DATA TRANSAKSI)
     // ==========================================
+    // ==========================================
+    // FUNGSI IMPORT DATA TRANSAKSI PEMINJAMAN
+    // ==========================================
     public function importExcel(Request $request)
     {
         $request->validate([
@@ -244,28 +247,28 @@ class PeminjamanController extends Controller
         $fileContent = file_get_contents($file->getPathname());
         $fileContent = mb_convert_encoding($fileContent, 'UTF-8', 'ISO-8859-1');
 
-        $tempPath = sys_get_temp_dir() . '/import_temp.csv';
+        $tempPath = sys_get_temp_dir() . '/import_transaksi_temp.csv';
         file_put_contents($tempPath, $fileContent);
         $handle = fopen($tempPath, "r");
 
-        // 2. Deteksi Delimiter Paling Akurat (Hitung jumlah ; vs , di baris pertama)
+        // 2. Deteksi Delimiter 
         $firstLine = fgets($handle);
         $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
-        rewind($handle); // Kembalikan ke baris paling atas
+        rewind($handle);
 
         // 3. Baca Header
         $header = fgetcsv($handle, 1000, $delimiter);
-        $header[0] = preg_replace('/[\xEF\xBB\xBF]/', '', $header[0]); // Hapus karakter BOM Excel
+        $header[0] = preg_replace('/[\xEF\xBB\xBF]/', '', $header[0]);
         $header = array_map('trim', $header);
 
         DB::beginTransaction();
         try {
             $countInserted = 0;
+            $countSkipped = 0; // Menghitung data yang ditolak/skip karena barang tidak ada
 
             while (($row = fgetcsv($handle, 1000, $delimiter)) !== FALSE) {
                 if (empty(array_filter($row))) continue;
 
-                // Anti-Crash: Sesuaikan jumlah kolom baris dengan header
                 if (count($row) > count($header)) {
                     $row = array_slice($row, 0, count($header));
                 } elseif (count($row) < count($header)) {
@@ -275,41 +278,54 @@ class PeminjamanController extends Controller
                 $row = array_map('trim', $row);
                 $data = array_combine($header, $row);
 
-                // --- 4. MENCARI ATAU MEMBUAT BARANG ---
+                // --- 4. MENCARI BARANG (TIDAK BUAT BARU LAGI) ---
                 $kodeAssetCsv = $data['kode_sap'] ?? ($data['kode_aset'] ?? null);
                 if (empty($kodeAssetCsv)) continue;
 
+                // Cek apakah barang sudah ada di Master Barang
                 $barang = Barang::where('kode_aset', $kodeAssetCsv)->first();
+
+                // JIKA BARANG BELUM DI-IMPORT DI TAHAP 1, SKIP BARIS INI
                 if (!$barang) {
-                    $barang = Barang::create([
-                        'kode_aset' => $kodeAssetCsv,
-                        'nama_barang' => 'Aset Import (' . $kodeAssetCsv . ')',
-                        'stok' => 1,
-                        'status' => 'Habis',
-                    ]);
+                    $countSkipped++;
+                    continue;
                 }
 
                 // --- 5. PARSER TANGGAL & STATUS ---
+                // Karena tbtndterima.csv biasanya tidak punya tanggal kembali, ini akan set ke 'Dipinjam'
                 $isSelesai = !empty($data['tanggal_pengembalian']);
                 $status = $isSelesai ? 'Dikembalikan' : 'Dipinjam';
 
                 $parseDate = function ($tgl) {
-                    if (empty($tgl)) return null;
+                    if (empty(trim($tgl))) {
+                        return now()->format('Y-m-d'); // Kasih default hari ini jika kosong
+                    }
                     try {
                         return \Carbon\Carbon::parse(str_replace(['/', '.'], '-', $tgl))->format('Y-m-d');
                     } catch (\Exception $e) {
                         return now()->format('Y-m-d');
                     }
                 };
-                $tanggalTransaksi = $parseDate($data['tgl_tndterima'] ?? ($data['tanggal_peminjaman'] ?? null));
 
-                // --- 6. DATA PEMINJAM ---
+                $tglAsliDariCsv = $data['tgl_tndterima'] ?? ($data['tanggal_peminjaman'] ?? null);
+                $tanggalTransaksi = $parseDate($tglAsliDariCsv);
+
+                // --- 6. DATA PEMINJAM (AMBIL DARI DATABASE KARYAWAN TAHAP 2) ---
                 $nikPinjam = $data['nik_penerima'] ?? ($data['nik_penyerah'] ?? ($data['nik_peminjam'] ?? '-'));
-                $namaPinjam = $data['nama_peminjam'] ?? 'Karyawan (Import)';
-                $deptPinjam = $data['departemen_peminjam'] ?? ($data['lokasi'] ?? '-');
-                $sitePinjam = $data['lokasi_peminjam'] ?? ($data['Site'] ?? '-');
 
-                // --- 7. INSERT DATA TRANSAKSI ---
+                $karyawan = Karyawan::where('nik', $nikPinjam)->first();
+
+                // Tarik nama dari tabel karyawans
+                $namaPinjam = $karyawan ? $karyawan->nama : ($data['nama_peminjam'] ?? 'Karyawan Tidak Terdaftar');
+                $deptPinjam = $karyawan ? $karyawan->departemen : ($data['departemen_peminjam'] ?? ($data['lokasi'] ?? '-'));
+                $sitePinjam = $karyawan ? $karyawan->lokasi_site : ($data['lokasi_peminjam'] ?? ($data['Site'] ?? '-'));
+
+                // Tanda jika tanggal peminjaman aslinya kosong
+                if (empty(trim($tglAsliDariCsv))) {
+                    $namaPinjam .= ' (Tgl Asli Tidak Tercatat)';
+                }
+
+                // --- 7. INSERT DATA TRANSAKSI KE DATABASE ---
                 Peminjaman::create([
                     'uuid' => (string) Str::uuid(),
                     'barang_id' => $barang->id,
@@ -338,6 +354,14 @@ class PeminjamanController extends Controller
                     'tanda_tangan_admin_penerima' => $isSelesai ? 'bypass_admin_penerima.png' : null,
                 ]);
 
+                // --- 8. UPDATE STOK BARANG OTOMATIS (OPSIONAL) ---
+                if ($status == 'Dipinjam' && $barang->stok > 0) {
+                    $barang->update([
+                        'stok' => $barang->stok - 1,
+                        'status' => ($barang->stok - 1 == 0) ? 'Habis' : 'Tersedia'
+                    ]);
+                }
+
                 $countInserted++;
             }
 
@@ -345,13 +369,188 @@ class PeminjamanController extends Controller
             fclose($handle);
             unlink($tempPath);
 
-            return redirect()->back()->with('success', "Import berhasil! Sebanyak {$countInserted} baris data telah ditambahkan.");
+            // Tampilkan laporan yang lengkap
+            $pesan = "Import Transaksi Berhasil! {$countInserted} baris ditambahkan.";
+            if ($countSkipped > 0) {
+                $pesan .= " Peringatan: Ada {$countSkipped} baris di-skip karena kode SAP belum terdaftar di Master Barang.";
+            }
+
+            return redirect()->back()->with('success', $pesan);
         } catch (\Exception $e) {
             DB::rollBack();
             if (isset($handle) && is_resource($handle)) fclose($handle);
             if (isset($tempPath) && file_exists($tempPath)) unlink($tempPath);
 
-            return redirect()->back()->with('error', 'Gagal Import: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal Import Transaksi: ' . $e->getMessage());
+        }
+    }
+    // ==========================================
+    // FUNGSI IMPORT MASTER DATA BARANG
+    // ==========================================
+    public function importBarang(Request $request)
+    {
+        $request->validate([
+            'csv_file' => 'required|mimes:csv,txt'
+        ]);
+
+        $file = $request->file('csv_file');
+
+        // Baca File dan Perbaiki Encoding (menghindari error karakter aneh)
+        $fileContent = file_get_contents($file->getPathname());
+        $fileContent = mb_convert_encoding($fileContent, 'UTF-8', 'ISO-8859-1');
+
+        $tempPath = sys_get_temp_dir() . '/import_barang_temp.csv';
+        file_put_contents($tempPath, $fileContent);
+        $handle = fopen($tempPath, "r");
+
+        // Deteksi Delimiter (karena hasil export Excel kadang pakai koma, kadang titik koma)
+        $firstLine = fgets($handle);
+        $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+        rewind($handle);
+
+        // Baca Header
+        $header = fgetcsv($handle, 1000, $delimiter);
+        $header[0] = preg_replace('/[\xEF\xBB\xBF]/', '', $header[0]);
+        $header = array_map('trim', $header);
+
+        DB::beginTransaction();
+        try {
+            $countInserted = 0;
+            $countUpdated = 0;
+
+            while (($row = fgetcsv($handle, 1000, $delimiter)) !== FALSE) {
+                if (empty(array_filter($row))) continue;
+
+                // Samakan jumlah kolom dengan header
+                if (count($row) > count($header)) {
+                    $row = array_slice($row, 0, count($header));
+                } elseif (count($row) < count($header)) {
+                    $row = array_pad($row, count($header), '');
+                }
+
+                $row = array_map('trim', $row);
+                $data = array_combine($header, $row);
+
+                // Prioritaskan kode_sap, jika kosong ambil kode_asset
+                $kodeAsetCsv = $data['kode_sap'] ?? ($data['kode_asset'] ?? null);
+
+                // Jika dua-duanya kosong, skip baris ini
+                if (empty($kodeAsetCsv) || strtolower($kodeAsetCsv) == 'nan') continue;
+
+                $namaBarangCsv = $data['deskripsi_brg'] ?? 'Aset Tanpa Nama';
+
+                // Gunakan updateOrCreate untuk menghindari data ganda/duplicate entry
+                $barang = Barang::updateOrCreate(
+                    ['kode_aset' => $kodeAsetCsv], // Cari berdasarkan kode aset ini
+                    [
+                        'nama_barang' => $namaBarangCsv,
+                        'stok' => 1,
+                        'status' => 'Tersedia'
+                    ] // Jika tidak ada, buat baru. Jika ada, update nama barangnya
+                );
+
+                if ($barang->wasRecentlyCreated) {
+                    $countInserted++;
+                } else {
+                    $countUpdated++;
+                }
+            }
+
+            DB::commit();
+            fclose($handle);
+            unlink($tempPath);
+
+            return redirect()->back()->with('success', "Import Master Barang Berhasil! {$countInserted} data baru ditambahkan, {$countUpdated} data diperbarui.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if (isset($handle) && is_resource($handle)) fclose($handle);
+            if (isset($tempPath) && file_exists($tempPath)) unlink($tempPath);
+
+            return redirect()->back()->with('error', 'Gagal Import Barang: ' . $e->getMessage());
+        }
+    }
+    // ==========================================
+    // FUNGSI IMPORT MASTER DATA KARYAWAN
+    // ==========================================
+    public function importKaryawan(Request $request)
+    {
+        $request->validate([
+            'csv_file' => 'required|mimes:csv,txt'
+        ]);
+
+        $file = $request->file('csv_file');
+
+        // Baca File dan Perbaiki Encoding
+        $fileContent = file_get_contents($file->getPathname());
+        $fileContent = mb_convert_encoding($fileContent, 'UTF-8', 'ISO-8859-1');
+
+        $tempPath = sys_get_temp_dir() . '/import_karyawan_temp.csv';
+        file_put_contents($tempPath, $fileContent);
+        $handle = fopen($tempPath, "r");
+
+        // Deteksi Delimiter 
+        $firstLine = fgets($handle);
+        $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+        rewind($handle);
+
+        // Baca Header
+        $header = fgetcsv($handle, 1000, $delimiter);
+        $header[0] = preg_replace('/[\xEF\xBB\xBF]/', '', $header[0]);
+        $header = array_map('trim', $header);
+
+        DB::beginTransaction();
+        try {
+            $countInserted = 0;
+            $countUpdated = 0;
+
+            while (($row = fgetcsv($handle, 1000, $delimiter)) !== FALSE) {
+                if (empty(array_filter($row))) continue;
+
+                if (count($row) > count($header)) {
+                    $row = array_slice($row, 0, count($header));
+                } elseif (count($row) < count($header)) {
+                    $row = array_pad($row, count($header), '');
+                }
+
+                $row = array_map('trim', $row);
+                $data = array_combine($header, $row);
+
+                $nikCsv = $data['nik'] ?? null;
+
+                // Skip kalau NIK kosong
+                if (empty($nikCsv)) continue;
+
+                $namaKaryawan = $data['nama_krywn'] ?? 'Tanpa Nama';
+                $departemen = $data['section'] ?? '-';
+
+                // UpdateOrCreate agar tidak ada NIK ganda di database
+                $karyawan = Karyawan::updateOrCreate(
+                    ['nik' => $nikCsv], // Cari berdasarkan NIK
+                    [
+                        'nama' => $namaKaryawan,
+                        'departemen' => $departemen,
+                        'lokasi_site' => 'IPR' // Default site
+                    ]
+                );
+
+                if ($karyawan->wasRecentlyCreated) {
+                    $countInserted++;
+                } else {
+                    $countUpdated++;
+                }
+            }
+
+            DB::commit();
+            fclose($handle);
+            unlink($tempPath);
+
+            return redirect()->back()->with('success', "Import Master Karyawan Berhasil! {$countInserted} data baru ditambahkan, {$countUpdated} data diperbarui.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if (isset($handle) && is_resource($handle)) fclose($handle);
+            if (isset($tempPath) && file_exists($tempPath)) unlink($tempPath);
+
+            return redirect()->back()->with('error', 'Gagal Import Karyawan: ' . $e->getMessage());
         }
     }
 }
