@@ -9,7 +9,7 @@ return new class extends Migration {
             $table->id();
             $table->string('kode_aset')->unique();
             $table->string('nama_barang');
-            $table->integer('stok')->default(0); // Penambahan fitur stok
+            $table->integer('stok')->default(0);
             $table->enum('status', ['Tersedia', 'Habis'])->default('Tersedia');
             $table->timestamps();
         });

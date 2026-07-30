@@ -22,7 +22,8 @@ return new class extends Migration {
             $table->string('tanda_tangan_peminjam'); 
             $table->string('tanda_tangan_admin_penyerah'); 
             
-            $table->enum('status', ['Dipinjam', 'Dikembalikan'])->default('Dipinjam');
+            //Penambahan status invalid dikarenakan format nya mengikuti csv data peminjaman lama
+            $table->enum('status', ['Dipinjam', 'Dikembalikan', 'Invalid'])->default('Dipinjam');
 
             // tahap saat akan melakukan pengembalian barang
             $table->string('nik_pengembali')->nullable();  // BARU

@@ -36,6 +36,10 @@
                 <i class="fas fa-history w-6 text-center"></i>
                 <span class="ml-3 font-semibold text-sm">Riwayat</span>
             </a>
+            <a href="{{ route('manage.index') }}" class="flex items-center px-4 py-3 {{ request()->routeIs('manage.index') ? 'bg-blue-600' : 'hover:bg-[#003366]' }} text-white rounded-md transition-colors">
+                <i class="fas fa-database w-6 text-center"></i>
+                <span class="ml-3 font-semibold text-sm">Kelola data</span>
+            </a>
 
         </nav>
 
