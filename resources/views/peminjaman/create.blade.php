@@ -10,16 +10,12 @@
     <form action="{{ route('peminjaman.store') }}" method="POST" id="form-pinjam" class="p-6">
         @csrf
         
-        <!-- Pilihan Barang -->
-        <div class="mb-4">
+        <!-- Pilihan Barang KODE TAMBAHAN: Live Search Barang -->
+        <div class="mb-4 relative">
             <label class="block text-sm font-semibold text-gray-700 mb-1">Aset yang Dipinjamkan *</label>
-            <select name="barang_id" required class="w-full border border-gray-400 p-2 text-sm rounded-md bg-gray-50 focus:border-blue-600 outline-none">
-                <option value="">-- Pilih Aset IT (Hanya yang Tersedia) --</option>
-                @foreach($barangs as $brg)
-                    <!-- Teks stok sudah dihilangkan di sini -->
-                    <option value="{{ $brg->id }}">{{ $brg->kode_aset }} - {{ $brg->nama_barang }}</option>
-                @endforeach
-            </select>
+            <input type="hidden" name="barang_id" id="barang_id" required>
+            <input type="text" id="search_barang" autocomplete="off" class="w-full border border-gray-400 p-2 text-sm rounded-md bg-gray-50 focus:border-blue-600 outline-none" placeholder="Ketik Kode SAP atau Nama Aset untuk mencari...">
+            <ul id="suggestion-box-barang" class="absolute z-10 w-full bg-white border border-gray-300 mt-1 max-h-40 overflow-y-auto hidden shadow-lg rounded-md text-sm"></ul>
         </div>
 
         <!-- Baris Nama dan NIK -->
@@ -84,6 +80,36 @@
 <!-- SCRIPT LIVE SEARCH & SIGNATURE PAD -->
 @push('scripts')
 <script>
+    // KODE TAMBAHAN: JS UNTUK LIVE SEARCH BARANG
+    const inputBarang = document.getElementById('search_barang');
+    const hiddenBarangId = document.getElementById('barang_id');
+    const suggestionBoxBarang = document.getElementById('suggestion-box-barang');
+
+    inputBarang.addEventListener('keyup', function() {
+        let query = this.value;
+        hiddenBarangId.value = ''; // Kosongkan ID kalau user ngetik ulang biar ga salah kirim
+        
+        if(query.length > 1) {
+            fetch(`/barang/search?q=${query}`).then(r => r.json()).then(data => {
+                suggestionBoxBarang.innerHTML = '';
+                if(data.length > 0) {
+                    suggestionBoxBarang.classList.remove('hidden');
+                    data.forEach(b => {
+                        let li = document.createElement('li');
+                        li.className = 'p-2 border-b cursor-pointer hover:bg-green-100'; // Bedain warna dikit dari form karyawan
+                        li.textContent = `${b.kode_aset} - ${b.nama_barang}`;
+                        li.addEventListener('click', function() {
+                            inputBarang.value = `${b.kode_aset} - ${b.nama_barang}`;
+                            hiddenBarangId.value = b.id; // Menyimpan ID ke hidden input
+                            suggestionBoxBarang.classList.add('hidden');
+                        });
+                        suggestionBoxBarang.appendChild(li);
+                    });
+                } else { suggestionBoxBarang.classList.add('hidden'); }
+            });
+        } else { suggestionBoxBarang.classList.add('hidden'); }
+    });
+
     const inputNama = document.getElementById('nama_peminjam');
     const suggestionBox = document.getElementById('suggestion-box');
     const inputNik = document.getElementById('nik_peminjam');
@@ -114,7 +140,12 @@
             });
         } else { suggestionBox.classList.add('hidden'); }
     });
-    document.addEventListener('click', function(e) { if(e.target !== inputNama && e.target !== suggestionBox) suggestionBox.classList.add('hidden'); });
+    
+    // KODE TAMBAHAN: Tutup popup barang kalau user ngeklik luar form
+    document.addEventListener('click', function(e) { 
+        if(e.target !== inputNama && e.target !== suggestionBox) suggestionBox.classList.add('hidden'); 
+        if(e.target !== inputBarang && e.target !== suggestionBoxBarang) suggestionBoxBarang.classList.add('hidden');
+    });
 
     var canvasAdmin = document.getElementById('pad-admin'); 
     var canvasPic = document.getElementById('pad-pic');
@@ -137,6 +168,13 @@
     document.getElementById('clear-pic').addEventListener('click', () => sigPic.clear());
     
     document.getElementById('form-pinjam').addEventListener('submit', function (e) {
+        // KODE TAMBAHAN: Validasi kalau barang dari suggestion belum di-klik
+        if (!document.getElementById('barang_id').value) {
+            e.preventDefault();
+            alert("Harap pilih Aset IT dari daftar pencarian yang muncul!");
+            return;
+        }
+
         if (sigAdmin.isEmpty() || sigPic.isEmpty()) { 
             e.preventDefault(); 
             alert("Kedua Tanda Tangan Wajib Diisi!"); 

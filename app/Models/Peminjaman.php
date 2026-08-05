@@ -8,8 +8,10 @@ use Illuminate\Support\Str;
 
 class Peminjaman extends Model
 {
+    // Hubungkan model ini ke tabel 'peminjamans'
     protected $table = 'peminjamans';
     
+    // Semua kolom ini wajib didaftarkan biar datanya bisa masuk pas di-save
     protected $fillable = [
         'uuid', 'barang_id', 
         'nik_peminjam', 'nama_peminjam', 'departemen_peminjam', 'lokasi_peminjam',
@@ -21,29 +23,34 @@ class Peminjaman extends Model
         'tanda_tangan_pengembali', 'tanda_tangan_admin_penerima'
     ];
 
+    // Relasi ke tabel barang: Tiap catatan peminjaman pasti nyambung ke 1 barang
     public function barang() {
         return $this->belongsTo(Barang::class);
     }
 
+    // Fungsi bawaan Laravel yang jalan otomatis di belakang layar
     protected static function booted()
     {
+        // Pas data peminjaman baru mau disimpen, otomatis buatin kode UUID kalau masih kosong
         static::creating(function ($model) {
             if (empty($model->uuid)) {
                 $model->uuid = (string) Str::uuid();
             }
         });
 
+        // Pas data diupdate, cek apakah statusnya berubah (misal dari Dipinjam -> Dikembalikan)
         static::updated(function ($model) {
             if($model->isDirty('status')) {
+                // Kalau berubah, catat otomatis ke tabel AuditLog buat jejak rekam (history)
                 \App\Models\AuditLog::create([
                     'user_id' => Auth::id() ?? null,
                     'peminjaman_id' => $model->id,
                     'aksi' => 'UBAH_STATUS',
-                    'nilai_lama' => $model->getOriginal('status'),
-                    'nilai_baru' => $model->status,
-                    'ip_address' => request()->ip()
+                    'nilai_lama' => $model->getOriginal('status'), // Status sebelumnya
+                    'nilai_baru' => $model->status,                // Status yang baru
+                    'ip_address' => request()->ip()                // Catat IP yang ngeklik
                 ]);
             }
         });
     }
-}  
+}
