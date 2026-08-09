@@ -481,14 +481,26 @@ class PeminjamanController extends Controller
                 $row = array_map('trim', $row);
                 $data = array_combine($header, $row);
 
+                // Ambil kode aset dari kolom 'kode_sap' atau 'kode_asset', kalau ga ada di skip
                 $kodeAsetCsv = $data['kode_sap'] ?? ($data['kode_asset'] ?? null);
                 if (empty($kodeAsetCsv) || strtolower($kodeAsetCsv) == 'nan') continue;
+                
                 $namaBarangCsv = $data['deskripsi_brg'] ?? 'Aset Tanpa Nama';
+                
+                // MAPPING JENIS BARANG DAN MERK DARI CSV
+                $kategoriCsv = $data['jenis_brg'] ?? '-';
+                $merkCsv = $data['merk'] ?? '-';
 
-                // updateOrCreate ini sakti: kalau kodenya udah ada dia bakal update namanya, kalau belum ada dibikinin baru
+                // updateOrCreate: kalau kodenya udah ada sistemnya bakal update, kalau belum dibikin baru
                 $barang = Barang::updateOrCreate(
                     ['kode_aset' => $kodeAsetCsv], 
-                    ['nama_barang' => $namaBarangCsv, 'stok' => 1, 'status' => 'Tersedia', 'kategori_barang' => '-', 'merk_barang' => '-'] 
+                    [
+                        'nama_barang' => $namaBarangCsv, 
+                        'stok' => 1, 
+                        'status' => 'Tersedia', 
+                        'kategori_barang' => $kategoriCsv, 
+                        'merk_barang' => $merkCsv
+                    ] 
                 );
 
                 if ($barang->wasRecentlyCreated) $countInserted++; else $countUpdated++;
