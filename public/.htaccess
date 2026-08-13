@@ -23,3 +23,17 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Memblokir semua akses langsung dari browser (URL)
+Deny from all
+
+# Jaga-jaga kalau servernya pakai konfigurasi lain, matikan mesin PHP di folder ini
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# Mencegah eksekusi file berbahaya kalau lolos
+AddType text/plain .php .php3 .php4 .php5 .phtml .pl .py .jsp .asp .htm .shtml .sh .cgi

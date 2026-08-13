@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -35,21 +34,6 @@ class Peminjaman extends Model
         static::creating(function ($model) {
             if (empty($model->uuid)) {
                 $model->uuid = (string) Str::uuid();
-            }
-        });
-
-        // Pas data diupdate, cek apakah statusnya berubah (misal dari Dipinjam -> Dikembalikan)
-        static::updated(function ($model) {
-            if($model->isDirty('status')) {
-                // Kalau berubah, catat otomatis ke tabel AuditLog buat jejak rekam (history)
-                \App\Models\AuditLog::create([
-                    'user_id' => Auth::id() ?? null,
-                    'peminjaman_id' => $model->id,
-                    'aksi' => 'UBAH_STATUS',
-                    'nilai_lama' => $model->getOriginal('status'), // Status sebelumnya
-                    'nilai_baru' => $model->status,                // Status yang baru
-                    'ip_address' => request()->ip()                // Catat IP yang ngeklik
-                ]);
             }
         });
     }
