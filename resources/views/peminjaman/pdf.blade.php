@@ -133,6 +133,12 @@
             $peminjaman->status == 'Dipinjam' ? $peminjaman->tanggal_peminjaman : $peminjaman->tanggal_pengembalian;
         $kondisiBarang = $peminjaman->status == 'Dipinjam' ? 'FULLSET' : $peminjaman->kondisi_dikembalikan;
 
+        // Menarik data jabatan asli dari database Karyawan
+        $karyawanInfo = \App\Models\Karyawan::where('nik', $nikPIC)->first();
+        
+        // Memastikan data tidak null, jika null paksa jadi tanda strip
+        $jabatanPIC = ($karyawanInfo && !empty($karyawanInfo->jabatan)) ? $karyawanInfo->jabatan : '-';
+
         $romanMonths = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
         $bulanRomawi = $romanMonths[date('n', strtotime($tanggalSurat))];
         $kataKerja = $peminjaman->status == 'Dipinjam' ? 'PENYERAHAN' : 'PENGEMBALIAN';
@@ -221,22 +227,24 @@
         <tr>
             <td>Section</td>
             <td>:</td>
-            <td>{{ strtoupper($lokasiPIC ?? 'PLANT') }}</td>
+            <!-- Menggunakan variabel departemen untuk Section -->
+            <td>{{ strtoupper($deptPIC ?? '-') }}</td>
         </tr>
         <tr>
             <td>Jabatan</td>
             <td>:</td>
-            <td>{{ strtoupper($deptPIC) }}</td>
+            <!-- Menampilkan Jabatan asli di PDF -->
+            <td>{{ strtoupper($jabatanPIC) }}</td>
         </tr>
     </table>
     <div style="margin-bottom: 20px; font-size: 12px;">Location: {{ strtoupper($lokasiPIC ?? 'PLANT') }}</div>
 
-    <!-- PERNYATAAN (Checkbox yang sudah diperbaiki) -->
+    <!-- PERNYATAAN (Checkbox kosong) -->
     <div class="checkbox-area">
         <table style="width: 100%; font-size: 12px; border: none; margin: 0; padding: 0;">
             <tr>
                 <td style="width: 20px; border: none; padding: 0 0 5px 0; vertical-align: top;">
-                    <div class="checkbox-box">V</div>
+                    <div class="checkbox-box">&nbsp;</div>
                 </td>
                 <td style="border: none; padding: 0 0 5px 0; vertical-align: top;">
                     Bersedia mematuhi kebijakan IT dilingkungan PT BUMA
@@ -244,7 +252,7 @@
             </tr>
             <tr>
                 <td style="width: 20px; border: none; padding: 0; vertical-align: top;">
-                    <div class="checkbox-box">V</div>
+                    <div class="checkbox-box">&nbsp;</div>
                 </td>
                 <td style="border: none; padding: 0; vertical-align: top;">
                     Bersedia mengganti Jika asset ini hilang atau rusak karena kelalaian saya

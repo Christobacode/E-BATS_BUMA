@@ -13,6 +13,10 @@ return new class extends Migration {
             $table->string('nama');
             $table->string('departemen');
             $table->string('lokasi_site'); 
+            
+            // Kolom baru untuk menampung data jabatan dari CSV
+            $table->string('jabatan')->nullable(); 
+            
             $table->timestamps();
         });
     }

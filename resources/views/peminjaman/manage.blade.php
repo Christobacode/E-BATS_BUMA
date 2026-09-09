@@ -54,10 +54,10 @@
         </div>
     </div>
 
-    <!-- TABEL MASTER DATA (1 Kolom Full Width, Bertumpuk Atas-Bawah) -->
+    <!-- TABEL MASTER DATA -->
     <div class="flex flex-col gap-8">
         
-        <!-- BAGIAN KARYAWAN (Di Atas) -->
+        <!-- BAGIAN KARYAWAN -->
         <div class="bg-white border border-gray-300 rounded-lg shadow-sm p-5 flex flex-col h-full overflow-hidden">
             <div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
                 <h2 class="font-bold text-gray-700">Data Karyawan</h2>
@@ -71,6 +71,10 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                     <input type="text" name="nik" id="nikKaryawan" placeholder="NIK" class="w-full border p-2 rounded outline-none focus:border-green-500" required>
                     <input type="text" name="nama" id="nmKaryawan" placeholder="Nama Karyawan" class="w-full border p-2 rounded outline-none focus:border-green-500" required>
+                    
+                    <!-- // Tambahan form input Jabatan -->
+                    <input type="text" name="jabatan" id="jbtKaryawan" placeholder="Jabatan (Misal: Foreman)" class="w-full border p-2 rounded outline-none focus:border-green-500">
+                    
                     <input type="text" name="departemen" id="deptKaryawan" placeholder="Departemen" class="w-full border p-2 rounded outline-none focus:border-green-500">
                     <input type="text" name="lokasi_site" id="siteKaryawan" placeholder="Site (Misal: IPR)" class="w-full border p-2 rounded outline-none focus:border-green-500">
                 </div>
@@ -86,7 +90,7 @@
                     <thead class="bg-gray-100 text-left sticky top-0 shadow-sm z-10">
                         <tr>
                             <th class="p-3 border-b w-1/4">NIK</th>
-                            <th class="p-3 border-b w-1/2">Nama & Departemen</th>
+                            <th class="p-3 border-b w-1/2">Detail Karyawan</th>
                             <th class="p-3 border-b text-center w-1/4">Aksi</th>
                         </tr>
                     </thead>
@@ -96,11 +100,13 @@
                             <td class="p-3 font-mono text-gray-600">{{ $k->nik }}</td>
                             <td class="p-3">
                                 <span class="font-bold text-gray-800">{{ $k->nama }}</span><br> 
-                                <span class="text-xs text-gray-500">{{ $k->departemen }} | {{ $k->lokasi_site }}</span>
+                                <!-- // Menampilkan Jabatan di tabel -->
+                                <span class="text-xs text-gray-500">{{ $k->jabatan ?? '-' }} | {{ $k->departemen }} | {{ $k->lokasi_site }}</span>
                             </td>
                             <td class="p-3 text-center align-middle">
                                 <div class="flex justify-center gap-2">
-                                    <button onclick="editKaryawan({{ $k->id }}, '{{ $k->nik }}', '{{ $k->nama }}', '{{ $k->departemen }}', '{{ $k->lokasi_site }}')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded transition-colors shadow-sm text-xs">Edit</button>
+                                    <!-- // Update parameter onclick editKaryawan (tambah jabatan) -->
+                                    <button onclick="editKaryawan({{ $k->id }}, '{{ $k->nik }}', '{{ $k->nama }}', '{{ $k->jabatan }}', '{{ $k->departemen }}', '{{ $k->lokasi_site }}')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded transition-colors shadow-sm text-xs">Edit</button>
                                     <form action="{{ route('karyawan.destroy', $k->id) }}" method="POST" class="inline" onsubmit="return confirm('Hapus karyawan ini?')">
                                         @csrf @method('DELETE') 
                                         <button class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded transition-colors shadow-sm text-xs">Hapus</button>
@@ -120,7 +126,7 @@
             </div>
         </div>
 
-        <!-- BAGIAN BARANG (Di Bawah) -->
+        <!-- BAGIAN BARANG -->
         <div class="bg-white border border-gray-300 rounded-lg shadow-sm p-5 flex flex-col h-full overflow-hidden">
             <div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0">
                 <h2 class="font-bold text-gray-700">Data Barang</h2>
@@ -215,12 +221,17 @@
         f.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     
-    function editKaryawan(id, nik, nama, dept, site) {
+    // // Update parameter JS (tambah jabatan)
+    function editKaryawan(id, nik, nama, jabatan, dept, site) {
         let f = document.getElementById('formKaryawan'); f.classList.remove('hidden');
         f.action = "/karyawan/" + id; document.getElementById('methodKaryawan').value = "PUT";
         
         document.getElementById('nikKaryawan').value = nik; 
         document.getElementById('nmKaryawan').value = nama; 
+        
+        // // Menarik data jabatan ke dalam form saat tombol edit diklik
+        document.getElementById('jbtKaryawan').value = jabatan === 'null' || !jabatan ? '' : jabatan; 
+        
         document.getElementById('deptKaryawan').value = dept === 'null' || !dept ? '' : dept; 
         document.getElementById('siteKaryawan').value = site === 'null' || !site ? '' : site;
         

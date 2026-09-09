@@ -11,5 +11,5 @@ class Karyawan extends Model
     
     // Model karyawan untuk mengelola data karyawan
     // Daftar kolom yang diizinkan buat disimpen atau diupdate
-    protected $fillable = ['nik', 'nama', 'departemen', 'lokasi_site'];
+    protected $fillable = ['nik', 'nama', 'departemen', 'lokasi_site', 'jabatan'];
 }
